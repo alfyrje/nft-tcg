@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const { ethers } = require('ethers');
+const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
 require('dotenv').config();
@@ -17,6 +18,45 @@ const PORT = process.env.PORT || 4000;
 const OWNER_KEY = process.env.BACKEND_OWNER_PRIVATE_KEY || '';
 const CARD_ADDR = process.env.CARD_NFT_ADDRESS || '';
 const AMOY_RPC = process.env.AMOY_RPC_URL || 'https://polygon-amoy.g.alchemy.com/v2/YOUR_KEY';
+const RPC = process.env.LOCAL_RPC_URL || 'http://127.0.0.1:8545';
+
+if(!OWNER_KEY || !CARD_ADDR) {
+    console.warn('BACKEND_OWNER_PRIVATE_KEY or CARD_NFT_ADDRESS not set in .env — mint endpoint will fail until set.');
+}
+
+const cardAbi = require(path.join(__dirname, '..', 'artifacts', 'contracts', 'CardNFT.sol', 'CardNFT.json')).abi;
+
+async function mintCardTo(toAddress, stats) {
+  // stats: { attack, health, speed, attribute, rarity, uri }
+  const provider = new ethers.JsonRpcProvider(RPC);
+  const ownerWallet = new ethers.Wallet(OWNER_KEY, provider);
+  const card = new ethers.Contract(CARD_ADDR, cardAbi, ownerWallet);
+
+  // map attribute and rarity strings to enum indexes
+  const attrMap = { Fire:0, Water:1, Earth:2, Steel:3, Nature:4 };
+  const rarityMap = { Common:0, Rare:1, Epic:2, Legendary:3, Mythic:4 };
+
+  const attrIdx = attrMap[stats.attribute] ?? 0;
+  const rarityIdx = rarityMap[stats.rarity] ?? 0;
+
+  // call mintCard(address to, uint16 attack, uint16 health, uint16 speed, Attribute attr, Rarity rarity, string uri)
+  const tx = await card.mintCard(toAddress, stats.attack, stats.health, stats.speed, attrIdx, rarityIdx, stats.uri);
+  const receipt = await tx.wait();
+  return receipt;
+}
+
+app.post('/mint', async (req,res) => {
+  try {
+    const { to, metaURI, attack, health, speed, attribute, rarity } = req.body;
+    if(!to || !metaURI) return res.status(400).json({error:'to and metaURI required'});
+    const stats = { attack: parseInt(attack), health: parseInt(health), speed: parseInt(speed), attribute, rarity, uri: metaURI };
+    const receipt = await mintCardTo(to, stats);
+    res.json({ ok:true, receipt });
+  } catch(e){
+    console.error(e);
+    res.status(500).json({ error: e.message || String(e) });
+  }
+});
 
 // minimal in-memory attempts store (reset on restart) - fine for dev
 const attempts = {};
