@@ -23,7 +23,43 @@ contract GameLogic is Ownable {
     mapping(uint256 => Battle) public battles;
     uint256 public nextBattle;
 
+    address public waitingPlayer;
+    uint256[3] public waitingDeck;
+
+    event BattleCreated(uint256 indexed battleId, address indexed p1, address indexed p2);
+    event BattleResolved(uint256 indexed battleId, address winner, address loser);
+
     constructor(address cardAddress) Ownable(msg.sender) { card = CardNFT(cardAddress); }
+
+    function registerForBattle(uint256[3] calldata deck) external {
+        for(uint i=0; i<3; i++){
+            require(card.ownerOf(deck[i]) == msg.sender, "Not your card");
+        }
+
+        if(waitingPlayer == address(0)) {
+            waitingPlayer = msg.sender;
+            waitingDeck = deck;
+        } else {
+            require(waitingPlayer != msg.sender, "Already waiting");
+            
+            uint256 id = nextBattle++;
+            Battle storage b = battles[id];
+            b.challenger = waitingPlayer;
+            b.challengerCards = waitingDeck;
+            b.challengerReady = true;
+            
+            b.opponent = msg.sender;
+            b.opponentCards = deck;
+            b.opponentReady = true;
+            
+            b.state = BattleState.Ready;
+            
+            emit BattleCreated(id, waitingPlayer, msg.sender);
+            
+            waitingPlayer = address(0);
+            delete waitingDeck;
+        }
+    }
 
     function createBattle(address opponent) external returns(uint256){
         uint256 id = nextBattle++;
@@ -61,10 +97,12 @@ contract GameLogic is Ownable {
             address loser = b.opponent;
             address winnerAddr = b.challenger;
             _transferRandomFrom(loser, winnerAddr, b.opponentCards);
+            emit BattleResolved(battleId, winnerAddr, loser);
         } else {
             address loser = b.challenger;
             address winnerAddr = b.opponent;
             _transferRandomFrom(loser, winnerAddr, b.challengerCards);
+            emit BattleResolved(battleId, winnerAddr, loser);
         }
         b.state = BattleState.Resolved;
     }

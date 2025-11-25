@@ -35,4 +35,17 @@ contract CardNFT is ERC721, Ownable {
         require(_ownerOf(tokenId) != address(0), "Token does not exist");
         return cards[tokenId];
     }
+
+    function getTokensOfOwner(address owner) external view returns(uint256[] memory) {
+        uint256 tokenCount = balanceOf(owner);
+        uint256[] memory result = new uint256[](tokenCount);
+        uint256 resultIndex = 0;
+        for (uint256 i = 0; i < nextId; i++) {
+            if (_ownerOf(i) == owner) {
+                result[resultIndex] = i;
+                resultIndex++;
+            }
+        }
+        return result;
+    }
 }

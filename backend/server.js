@@ -24,7 +24,60 @@ if(!OWNER_KEY || !CARD_ADDR) {
     console.warn('BACKEND_OWNER_PRIVATE_KEY or CARD_NFT_ADDRESS not set in .env — mint endpoint will fail until set.');
 }
 
+const pinnedCards = JSON.parse(fs.readFileSync('./pinned_cards.json', 'utf8'));
+
 const cardAbi = require(path.join(__dirname, '..', 'artifacts', 'contracts', 'CardNFT.sol', 'CardNFT.json')).abi;
+
+const RARITY_WEIGHTS = {
+  Common: 60,
+  Rare: 25,
+  Epic: 10,
+  Legendary: 4,
+  Mythic: 1
+};
+
+const GATEWAYS = [
+    'https://gateway.pinata.cloud/ipfs/',
+    'https://ipfs.io/ipfs/',
+    'https://dweb.link/ipfs/',
+    'https://cloudflare-ipfs.com/ipfs/'
+];
+
+async function fetchIPFS(ipfsURI) {
+    const hash = ipfsURI.replace('ipfs://', '');
+    for (const gateway of GATEWAYS) {
+        try {
+            const url = `${gateway}${hash}`;
+            const response = await axios.get(url, { timeout: 5000 });
+            return response.data;
+        } catch (e) {
+            // console.warn(`Gateway ${gateway} failed for ${hash}: ${e.message}`);
+            continue;
+        }
+    }
+    throw new Error('All IPFS gateways failed');
+}
+
+function pickRandomCardWithRarity() {
+  const rand = Math.random() * 100;
+  let cumulative = 0;
+  let selectedRarity = 'Common';
+  
+  for (const [rarity, weight] of Object.entries(RARITY_WEIGHTS)) {
+    cumulative += weight;
+    if (rand < cumulative) {
+      selectedRarity = rarity;
+      break;
+    }
+  }
+
+  const pool = pinnedCards.filter(c => c.rarity === selectedRarity);
+  if (pool.length === 0) {
+    // Fallback if no cards of that rarity exist in pinned_cards.json
+    return pinnedCards[Math.floor(Math.random() * pinnedCards.length)];
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 async function mintCardTo(toAddress, stats) {
   // stats: { attack, health, speed, attribute, rarity, uri }
@@ -56,6 +109,52 @@ app.post('/mint', async (req,res) => {
     console.error(e);
     res.status(500).json({ error: e.message || String(e) });
   }
+});
+
+app.post("/gacha/pull", async (req, res) => {
+  try {
+    const { to } = req.body;
+    if (!to) return res.status(400).json({ ok: false, error: "Missing 'to' address" });
+
+    // 1. pick a random pinned card based on rarity weights
+    const pick = pickRandomCardWithRarity();
+
+    // 2. build stats object for mintCardTo()
+    const stats = {
+      attack: pick.attack,
+      health: pick.health,
+      speed: pick.speed,
+      attribute: pick.attr,      
+      rarity: pick.rarity,
+      uri: pick.metaURI      
+    };
+
+    // 3. call your mint function
+    const receipt = await mintCardTo(to, stats);
+
+    return res.json({
+      ok: true,
+      mint: pick,
+      txHash: receipt.hash
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/metadata', async (req, res) => {
+    try {
+        const { uri } = req.query;
+        if (!uri) return res.status(400).json({ error: 'Missing uri' });
+
+        const data = await fetchIPFS(uri);
+        res.json(data);
+    } catch (e) {
+        console.error("Metadata fetch failed:", e.message);
+        res.status(500).json({ error: 'Failed to fetch metadata' });
+    }
 });
 
 // minimal in-memory attempts store (reset on restart) - fine for dev
