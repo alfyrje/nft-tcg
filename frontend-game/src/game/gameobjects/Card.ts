@@ -1,13 +1,23 @@
-export default class Card {
-    scene: Phaser.Scene;
-    container: Phaser.GameObjects.Container
+import CardInfo from "../models/CardInfo";
 
-    constructor(scene: Phaser.Scene, x: integer, y: integer) {
+export default class Card {
+    private scene: Phaser.Scene;
+    private visualContainer: Phaser.GameObjects.Container
+    private eventEmitter: Phaser.Events.EventEmitter;
+    private highlightBackground: Phaser.GameObjects.Image
+
+    static HOVER_ENTER_EVENT: string = "hoverEnter" as const;
+    static HOVER_EXIT_EVENT: string = "hoverLeave" as const;
+    static SELECT_EVENT: string = "selected" as const;
+
+    constructor(scene: Phaser.Scene, cardInfo: CardInfo, addToScene: boolean) {
         this.scene = scene
-        this.container = this.scene.make.container({
-            x: x,
-            y: y
-        }, true)
+        this.eventEmitter = new Phaser.Events.EventEmitter()
+
+        this.visualContainer = this.scene.make.container({
+            x: 0,
+            y: 0
+        }, addToScene)
 
         var background = this.scene.make.image({
             key: 'cardBackground',
@@ -49,6 +59,16 @@ export default class Card {
             y: 48
         }, false)
 
+        this.highlightBackground = this.scene.make.image({
+            key: 'cardSelectedBackground',
+            x: 0,
+            y: 0,
+            add: false
+        })
+
+        this.highlightBackground.setScale(1.5 * 1.1)
+        this.highlightBackground.setTint(0xFF8899)
+
         nameLabel.setFontFamily("CardTitleFont")
         nameLabel.setAlign("center")
         nameLabel.setFontSize(20)
@@ -58,13 +78,64 @@ export default class Card {
 
         nameLabel.x = -nameLabel.displayWidth / 2
 
-        this.container.x = background.width
-        this.container.y = background.height
+        this.visualContainer.width = background.width * 1.5
+        this.visualContainer.height = background.height * 1.5
 
-        this.container.add(background)
-        this.container.add(namePlate)
-        this.container.add(nameLabel)
-        this.container.add(artFrame)
+        this.visualContainer.add(this.highlightBackground)
+        this.visualContainer.add(background)
+        this.visualContainer.add(namePlate)
+        this.visualContainer.add(nameLabel)
+        this.visualContainer.add(artFrame)
         //this.container.add(cardFrame)
+
+        this.visualContainer.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, (_1: any, _2: number, _3: number, _4: PointerEvent) => {
+            this.eventEmitter.emit(Card.HOVER_ENTER_EVENT, this)
+        })
+
+        this.visualContainer.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, (_1: any, _2: number, _3: number, _4: PointerEvent) => {
+            this.eventEmitter.emit(Card.HOVER_EXIT_EVENT, this)
+        })
+
+        this.visualContainer.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, (_1: any, _2: number, _3: number, _4: PointerEvent) => {
+            this.eventEmitter.emit(Card.SELECT_EVENT, this)
+        })
+
+        this.visualContainer.setInteractive()
+
+        this.setHighlighted(false)
+    }
+
+    width(): integer {
+        return this.visualContainer.width
+    }
+
+    height(): integer {
+        return this.visualContainer.height
+    }
+
+    container(): Phaser.GameObjects.Container {
+        return this.visualContainer;
+    }
+
+    position(): Phaser.Math.Vector2 {
+        return new Phaser.Math.Vector2(this.visualContainer.x, this.visualContainer.y)
+    }
+
+    setPosition(newPosition: Phaser.Math.Vector2) {
+        this.visualContainer.x = newPosition.x;
+        this.visualContainer.y = newPosition.y;
+    }
+
+    subscribe(eventName: string, fn: Function) {
+        this.eventEmitter.addListener(eventName, fn)
+    }
+
+    highlighted(): boolean {
+        return this.highlightBackground.active
+    }
+
+    setHighlighted(active: boolean) {
+        this.highlightBackground.active = active
+        this.highlightBackground.visible = active
     }
 }
