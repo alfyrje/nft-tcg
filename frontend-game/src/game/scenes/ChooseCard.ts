@@ -1,4 +1,3 @@
-import Card from "../gameobjects/Card";
 import WebFont from "webfontloader"
 import CardCollection from "../gameobjects/CardCollection";
 import CardCollectionInfo from "../models/CardCollectionInfo";
@@ -11,6 +10,10 @@ import CardPickConfig from "../gameobjects/CardPickConfig";
 
 // "Every great game begins with a single scene. Let's make this one unforgettable!"
 export class ChooseCard extends Phaser.Scene {
+    private cardPickController: CardPickController
+    private cardCollection: CardCollection
+    private zone: Phaser.GameObjects.Zone
+
     constructor() {
         super('ChooseCard');
     }
@@ -43,9 +46,8 @@ export class ChooseCard extends Phaser.Scene {
         })
     }
 
-    create() {
-        // Create game objects
-        var cardCollectionInfo = new CardCollectionInfo([
+    getCardCollectionInfo(): CardCollectionInfo {
+        return new CardCollectionInfo([
             new CardInfo({
                 attack: 50,
                 health: 10,
@@ -68,15 +70,21 @@ export class ChooseCard extends Phaser.Scene {
                 element: CardElement.Steel
             })
         ])
+    }
 
-        var cardCollection = new CardCollection(this, new CardCollectionConfig({
+    create() {
+        var cardCollectionInfo = this.getCardCollectionInfo()
+
+        this.cardCollection = new CardCollection(this, new CardCollectionConfig({
             spacing: 20,
             info: cardCollectionInfo,
-            x: 600,
-            y: 400
         }), true)
 
-        var pickController = new CardPickController(this, cardCollection, new CardPickConfig())
+
+        this.cardPickController = new CardPickController(this, this.cardCollection, new CardPickConfig())
+        this.zone = this.add.zone(this.scale.width / 2, this.scale.height / 2, this.scale.width, this.scale.height)
+
+        Phaser.Display.Align.In.Center(this.cardCollection.container(), this.zone, 0, -this.scale.width / 10)
     }
 
 }

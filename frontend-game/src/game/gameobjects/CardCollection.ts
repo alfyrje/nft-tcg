@@ -4,20 +4,20 @@ import CardCollectionConfig from "./CardCollectionConfig";
 class CardCollection {
     private cardList: Card[];
     private origin: Phaser.GameObjects.Container;
-    private container: Phaser.GameObjects.Container;
+    private realContainer: Phaser.GameObjects.Container;
     private config: CardCollectionConfig;
 
     constructor(scene: Phaser.Scene, config: CardCollectionConfig, addToScene: boolean) {
         this.config = config
 
         this.cardList = config.info.cardList.map(cardInfo => new Card(scene, cardInfo, false))
-        this.container = scene.make.container({}, false)
+        this.realContainer = scene.make.container({}, false)
         this.origin = scene.make.container({}, addToScene)
 
-        this.origin.add(this.container)
+        this.origin.add(this.realContainer)
 
         for (let card of this.cardList) {
-            this.container.add(card.container())
+            this.realContainer.add(card.container())
         }
 
         this.realignContainer()
@@ -32,11 +32,11 @@ class CardCollection {
             let containerWidth = this.cardList.length * singleCardWidth + this.config.spacing * (this.cardList.length - 1)
             let containerHeight = this.cardList[0].height()
 
-            this.container.width = containerWidth
-            this.container.height = containerHeight
+            this.realContainer.width = containerWidth
+            this.realContainer.height = containerHeight
         
-            this.container.x = -containerWidth / 2
-            this.container.y = -containerHeight / 2
+            this.realContainer.x = -containerWidth / 2
+            this.realContainer.y = -containerHeight / 2
 
             for (let i = 0; i < this.cardList.length; i++) {
                 let cardRef = this.cardList[i]
@@ -53,6 +53,10 @@ class CardCollection {
     setPosition(newPosition: Phaser.Math.Vector2) {
         this.origin.x = newPosition.x;
         this.origin.y = newPosition.y;
+    }
+
+    container() : Phaser.GameObjects.Container {
+        return this.origin
     }
 
     cards(): Card[] {
