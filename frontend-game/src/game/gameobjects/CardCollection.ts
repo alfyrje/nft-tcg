@@ -41,7 +41,7 @@ class CardCollection {
             for (let i = 0; i < this.cardList.length; i++) {
                 let cardRef = this.cardList[i]
 
-                cardRef.setPosition(new Phaser.Math.Vector2(singleCardWidth * (i + 0.5) + this.config.spacing * (i - 1), 0))
+                cardRef.setPosition(new Phaser.Math.Vector2(singleCardWidth * (i + 0.5) + this.config.spacing * i, 0))
             }
         }
     }
