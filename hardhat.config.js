@@ -17,7 +17,7 @@ module.exports = {
       url: "http://127.0.0.1:8545",
     },
     amoy: {
-      url: process.env.AMOY_RPC_URL,
+      url: process.env.RPC_URL,
       chainId: 80002,
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : []
     }

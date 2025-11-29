@@ -17,8 +17,8 @@ app.use(express.json());
 const PORT = process.env.PORT || 4000;
 const OWNER_KEY = process.env.BACKEND_OWNER_PRIVATE_KEY || '';
 const CARD_ADDR = process.env.CARD_NFT_ADDRESS || '';
-const AMOY_RPC = process.env.AMOY_RPC_URL || 'https://polygon-amoy.g.alchemy.com/v2/YOUR_KEY';
-const RPC = process.env.LOCAL_RPC_URL || 'http://127.0.0.1:8545';
+// Use RPC_URL if set, otherwise fall back to local hardhat node
+const RPC = process.env.RPC_URL || 'http://127.0.0.1:8545';
 
 if(!OWNER_KEY || !CARD_ADDR) {
     console.warn('BACKEND_OWNER_PRIVATE_KEY or CARD_NFT_ADDRESS not set in .env — mint endpoint will fail until set.');
