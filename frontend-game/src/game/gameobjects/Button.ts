@@ -2,6 +2,9 @@ class Button extends Phaser.GameObjects.Container {
     private labelObject: Phaser.GameObjects.Text
     private backgroundObject: Phaser.GameObjects.Sprite
     private hoverBackground: Phaser.GameObjects.Sprite
+    private eventEmitter: Phaser.Events.EventEmitter
+
+    static PRESSED_EVENT = "pressed"
 
     constructor(scene: Phaser.Scene, x: number, y: number, backgroundKey: string, spriteNumber: integer, spriteScale: number, textConfig: Phaser.Types.GameObjects.Text.TextConfig, addToScene: boolean = true) {
         super(scene, x, y)
@@ -32,6 +35,8 @@ class Button extends Phaser.GameObjects.Container {
         this.width = this.backgroundObject.displayWidth
         this.height = this.backgroundObject.displayHeight
 
+        this.eventEmitter = new Phaser.Events.EventEmitter();
+
         if (addToScene) {
             scene.children.add(this)
         }
@@ -56,6 +61,7 @@ class Button extends Phaser.GameObjects.Container {
 
         this.on(Phaser.Input.Events.POINTER_UP, () => {
             this.setScale(1)
+            this.eventEmitter.emit(Button.PRESSED_EVENT)
         })
 
         this.hoverBackground.setTintFill(0x696969, 0x696969, 0x696969, 0x696969)
@@ -65,6 +71,10 @@ class Button extends Phaser.GameObjects.Container {
         this.labelObject.text = newText;
 
         this.refreshAlignment();
+    }
+
+    subscribeToEvent(event_key: string, fn: Function) {
+        this.eventEmitter.addListener(event_key, fn)
     }
 
     private refreshAlignment() {

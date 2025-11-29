@@ -8,13 +8,18 @@ import CardCollectionConfig from "../gameobjects/CardCollectionConfig";
 import CardPickController from "../gameobjects/CardPickController";
 import CardPickConfig from "../gameobjects/CardPickConfig";
 import Button from "../gameobjects/Button";
+import { initLoadCardAssets, loadCardAssets } from "./Shared";
+import { BattlePlaybackInfo } from "../models/BattlePlaybackInfo";
+import CardPickPrefab from "../gameobjects/CardPickPrefab";
+import CardAttackPrefab from "../gameobjects/CardAttackPrefab";
+import BattleResultPrefab from "../gameobjects/BattleResultPrefab";
 
 // "Every great game begins with a single scene. Let's make this one unforgettable!"
 export class ChooseCard extends Phaser.Scene {
-    private cardPickController: CardPickController
-    private cardCollection: CardCollection
     private zone: Phaser.GameObjects.Zone
-    private queueButton: Button
+    private cardPicker: CardPickPrefab
+    private cardBattle: CardAttackPrefab
+    private battleResult: BattleResultPrefab
 
     constructor() {
         super('ChooseCard');
@@ -22,36 +27,12 @@ export class ChooseCard extends Phaser.Scene {
 
     init() {
         // Initialize scene
-        const element = document.createElement('style');
-        document.head.appendChild(element);
-
-        const sheet = element.sheet;
-
-        let styles = '@font-face { font-family: "CardTitleFont"; src: url("assets/fonts/GraenMetal.otf") format("opentype"); }\n';
-
-        sheet?.insertRule(styles, 0);
+        initLoadCardAssets()
     }
 
     preload() {
         // Load assets
-        this.load.setPath("assets")
-        this.load.image('cardBackground', 'cardVisual/CardBackground_RuinWall.png')
-        this.load.image('cardFrame', 'cardVisual/CardFrame_Gold.png')
-        this.load.image('namePlate', 'cardVisual/NamePlate_ShinyGold.png')
-        this.load.image('cardArtFrame', 'cardVisual/CardArtFrame_Gold.png')
-        this.load.image('cardSelectedBackground', 'cardVisual/CardBackground_Highlight.png')
-        this.load.spritesheet('buttonBSheet', 'ui/buttonSheet.png', { frameWidth: 96, frameHeight: 22 })
-
-        this.load.image('bg1', 'background/bg1.png')
-        this.load.image('bg2', 'background/bg2.png')
-        this.load.image('bg3', 'background/bg3.png')
-        this.load.image('bg4', 'background/bg4.png')
-
-        WebFont.load({
-            custom: {
-                families: [ 'CardTitleFont' ]
-            },
-        })
+        loadCardAssets(this)
     }
 
     getCardCollectionInfo(): CardCollectionInfo {
@@ -65,14 +46,14 @@ export class ChooseCard extends Phaser.Scene {
             }),
             new CardInfo({
                 attack: 70,
-                health: 90,
+                health: 20,
                 speed: 25,
                 rarity: CardRarity.Epic,
                 element: CardElement.Steel
             }),
             new CardInfo({
                 attack: 100,
-                health: 90,
+                health: 20,
                 speed: 88,
                 rarity: CardRarity.Legendary,
                 element: CardElement.Steel
@@ -80,36 +61,122 @@ export class ChooseCard extends Phaser.Scene {
         ])
     }
 
-    create() {
+    getBattlePlaybackInfo() : BattlePlaybackInfo {
+        var deckEnemy = new CardCollectionInfo([
+            new CardInfo({
+                attack: 20,
+                health: 10,
+                speed: 20,
+                rarity: CardRarity.Common,
+                element: CardElement.Fire
+            }),
+            new CardInfo({
+                attack: 70,
+                health: 50,
+                speed: 25,
+                rarity: CardRarity.Epic,
+                element: CardElement.Steel
+            }),
+            new CardInfo({
+                attack: 100,
+                health: 30,
+                speed: 88,
+                rarity: CardRarity.Common,
+                element: CardElement.Steel
+            })
+        ])
+        
+        return {
+            deckA: { ownerAddress: "0x190", cardCollectionInfo: this.getCardCollectionInfo() },
+            deckB: { ownerAddress: "0x34955", cardCollectionInfo: deckEnemy },
+            deckWonIndex: 0,
+            attacks: [
+                {
+                    cardAIndex: 0,
+                    cardBIndex: 2,
+                    cardAHealthAfter: 10,
+                    cardBHealthAfter: 15,
+                    damage: 15,
+                    attacker: 0
+                },
+                {
+                    cardAIndex: 1,
+                    cardBIndex: 0,
+                    attacker: 1,
+                    cardAHealthAfter: 0,
+                    cardBHealthAfter: 10,
+                    damage: 10,
+                }
+            ]
+        }
+    }
+
+    createBase() {
         var randomImageIndex = Phaser.Math.Between(1, 4)
         var backgroundImage = this.add.image(0, 0, `bg${randomImageIndex}`)
         backgroundImage.alpha = 0.2
 
-        var title = this.add.text(0, 0, 'Choose your card')
-        title.setFontSize(35)
-
-        var cardCollectionInfo = this.getCardCollectionInfo()
-
-        this.cardCollection = new CardCollection(this, new CardCollectionConfig({
-            spacing: 20,
-            info: cardCollectionInfo,
-        }), true)
-
-
-        this.cardPickController = new CardPickController(this, this.cardCollection, new CardPickConfig())
         this.zone = this.add.zone(this.scale.width / 2, this.scale.height / 2, this.scale.width, this.scale.height)
 
         var zoneHeightRatio = this.scale.height / backgroundImage.displayHeight
         backgroundImage.setScale(zoneHeightRatio)
 
-        this.queueButton = new Button(this, 0, 0, 'buttonBSheet', 2, 2, {
-            text: "Queue",
-        })
-
-
-        Phaser.Display.Align.In.Center(this.cardCollection.container(), this.zone, 0, this.scale.width / 30)
-        Phaser.Display.Align.In.Center(this.queueButton, this.zone, 0, this.scale.width / 10)
         Phaser.Display.Align.In.Center(backgroundImage, this.zone)
-        Phaser.Display.Align.In.Center(title, this.zone, 0, -this.scale.width / 4)
+    }
+
+    loadCardPicker() {
+        this.cardPicker = new CardPickPrefab(this, this.zone, this.getCardCollectionInfo())
+        this.cardPicker.onQueuePressed = () => {
+            this.cameras.main.fadeOut(200, 0, 0, 0)
+
+            let handler = () => {
+                this.cameras.main.off(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handler)
+                this.onBattleReportedFromServer()
+            }
+
+            this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handler)
+        }
+    }
+
+    loadBattle() {
+        this.cardBattle = new CardAttackPrefab(this, this.zone, this.getBattlePlaybackInfo())
+        this.cardBattle.onBattleCompleteHandler = this.onBattlePlaybackCompleted.bind(this)
+    }
+
+    onBattleReportedFromServer() {
+        this.cardPicker.destroy()
+        this.loadBattle()
+
+        this.cameras.main.fadeIn(200, 0, 0, 0)
+        this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, () => {
+            this.cardBattle.startPlayback()
+        })
+    }
+
+    onBattlePlaybackCompleted() {
+        this.battleResult = new BattleResultPrefab(this, this.zone, this.getBattlePlaybackInfo())
+        this.battleResult.onReplayRequestedHandler = this.onReplayRequested.bind(this)
+    }
+
+    onReplayRequested() {
+        this.cameras.main.fadeOut(200, 0, 0, 0)
+
+        let handleFadeOutFunc = () => {
+            this.cameras.main.off(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handleFadeOutFunc)
+
+            this.battleResult.destroy()
+            this.cardBattle.destroy()
+
+            this.loadCardPicker()
+
+            this.cameras.main.fadeIn(200, 0, 0, 0)
+        }
+
+        this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handleFadeOutFunc)
+    }
+
+    create() {
+        this.createBase()
+        this.loadCardPicker()
     }
 }
