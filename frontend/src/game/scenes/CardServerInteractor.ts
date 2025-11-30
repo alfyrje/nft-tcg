@@ -28,6 +28,7 @@ export class CardServerInteractor {
         this.gameLogicAbi = gameLogicAbi
 
         this.provider = new ethers.BrowserProvider(window.ethereum!);
+        this.provider.pollingInterval = 100
     }
 
     async getCardContract(): Promise<ethers.Contract> {
@@ -201,67 +202,56 @@ export class CardServerInteractor {
             attacks: []
         })
 
-        // Create handlers with resolve callback
-        let resolveHandler: (() => void) | null = null;
-        let battleStepCount = 0;
-        let expectedStepCount = 0;
-        let battleFinished = false;
-
-        const battleStepHandler = (handlerBattleId: string, p1CardIndex: string, p2CardIndex: string, p1HealthAfter: string, p2HealthAfter: string, damage: string, attackSide: string) => {
-            if (battleId != handlerBattleId) {
-                return
-            }
-
-            battleStepCount++;
-            console.log(`Attacking info delivered cardAIndex=${p1CardIndex}, cardBIndex=${p2CardIndex}, cardAHealth=${p1HealthAfter} cardBHealth=${p2HealthAfter} danage=${damage} attackSide=${attackSide}`)
-
-            playbackInfo.attacks.push({
-                cardAIndex: Number(p1CardIndex),
-                cardBIndex: Number(p2CardIndex),
-                damage: Number(damage),
-                cardAHealthAfter: Number(p1HealthAfter),
-                cardBHealthAfter: Number(p2HealthAfter),
-                attacker: Number(attackSide)
-            })
-
-            // Resolve if battle finished and we've received all steps
-            if (battleFinished && battleStepCount >= expectedStepCount && resolveHandler) {
-                resolveHandler()
+        // Loop until BattleResolved event is found for this battleId
+        let battleResolved = false;
+        while (!battleResolved) {
+            // Query BattleResolved event
+            const resolvedFilter = gameContract.filters.BattleResolved(battleId);
+            const resolvedEvents = await gameContract.queryFilter(resolvedFilter);
+            
+            if (resolvedEvents.length > 0) {
+                const resolvedEvent = resolvedEvents[0];
+                const args = 'args' in resolvedEvent ? resolvedEvent.args : [];
+                const [battleIdEvent, winner, loser, totalSteps] = args || [];
+                
+                console.log(`Battle finished: winner=${winner} loser=${loser} totalSteps=${totalSteps}`);
+                
+                if (winner == deckBAddress) {
+                    playbackInfo.deckWonIndex = 1
+                } else {
+                    playbackInfo.deckWonIndex = 0
+                }
+                
+                battleResolved = true;
+            } else {
+                // Wait 200ms before querying again
+                await new Promise(r => setTimeout(r, 200));
             }
         }
 
-        const battleFinishHandler = (handlerBattleId: string, winner: string, loser: string, totalSteps: string) => {
-            if (battleId != handlerBattleId) {
-                return
+        // Query BattleStep events
+        const stepFilter = gameContract.filters.BattleStep(battleId);
+        const stepEvents = await gameContract.queryFilter(stepFilter);
+        
+        console.log(`Found ${stepEvents.length} battle step events`);
+        
+        stepEvents.forEach((event) => {
+            const args = 'args' in event ? event.args : [];
+            const [battleIdEvent, p1CardIndex, p2CardIndex, p1HealthAfter, p2HealthAfter, damage, attackSide] = args;
+            
+            if (battleIdEvent == battleId) {
+                console.log(`Attacking info: cardAIndex=${p1CardIndex}, cardBIndex=${p2CardIndex}, cardAHealth=${p1HealthAfter} cardBHealth=${p2HealthAfter} damage=${damage} attackSide=${attackSide}`);
+                
+                playbackInfo.attacks.push({
+                    cardAIndex: Number(p1CardIndex),
+                    cardBIndex: Number(p2CardIndex),
+                    damage: Number(damage),
+                    cardAHealthAfter: Number(p1HealthAfter),
+                    cardBHealthAfter: Number(p2HealthAfter),
+                    attacker: Number(attackSide)
+                });
             }
-
-            battleFinished = true;
-            expectedStepCount = Number(totalSteps);
-
-            if (winner == deckBAddress) {
-                playbackInfo.deckWonIndex = 1
-            }
-
-            // If we've already received all battle steps, resolve immediately
-            if (battleStepCount >= expectedStepCount && resolveHandler) {
-                resolveHandler()
-            }
-        }
-
-        // Register both listeners BEFORE calling resolveBattle
-        gameContract.on('BattleResolved', battleFinishHandler)
-        gameContract.on('BattleStep', battleStepHandler)
-
-        // Create a Promise that resolves when the handler fires
-        const battleFinishPromise = new Promise<void>((resolve) => {
-            resolveHandler = resolve
-        })
-
-        // Wait for the BattleResolved event and handler to complete
-        await battleFinishPromise;
-
-        gameContract.off('BattleResolved', battleFinishHandler)
-        gameContract.off('BattleStep', battleStepHandler)
+        });
 
         return playbackInfo
     }
