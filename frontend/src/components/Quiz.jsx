@@ -2,6 +2,52 @@ import React, {useEffect, useState} from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
+// Random fallback covers
+const RANDOM_COVERS = [
+    '/assets/randomCardCover/randomCover1.png',
+    '/assets/randomCardCover/randomCover2.png',
+    '/assets/randomCardCover/randomCover3.png',
+    '/assets/randomCardCover/randomCover4.jpg',
+];
+
+// Seeded random for consistent fallback per card ID
+function seededRandom(seed) {
+    seed = seed * 2654435761 ^ seed >>> 16;
+    seed = seed * 2654435761 ^ seed >>> 16;
+    seed |= 0;
+    seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+}
+
+function getRandomCover(cardId) {
+    const index = Math.floor(seededRandom(Number(cardId)) * RANDOM_COVERS.length);
+    return RANDOM_COVERS[index];
+}
+
+// Card image component with fallback
+function CardImage({ cardId, src, alt }) {
+    const [imgSrc, setImgSrc] = useState(src || getRandomCover(cardId));
+    const [hasError, setHasError] = useState(false);
+
+    const handleError = () => {
+        if (!hasError) {
+            setHasError(true);
+            setImgSrc(getRandomCover(cardId));
+        }
+    };
+
+    return (
+        <img 
+            src={imgSrc} 
+            alt={alt} 
+            style={{width:'100%', borderRadius: '8px'}} 
+            onError={handleError}
+        />
+    );
+}
+
 export default function Quiz({address}){
     const navigate = useNavigate();
     const [questions, setQuestions] = useState([]);
@@ -108,7 +154,11 @@ export default function Quiz({address}){
                     <div style={{display:'flex', gap:'20px', flexWrap:'wrap', justifyContent:'center', marginBottom:'40px'}}>
                         {mintedCards.map((card, i) => (
                             <div key={i} className="card" style={{transform: 'scale(1.1)', margin: '20px'}}>
-                                <img src={card.imageURI.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')} alt={card.name} width="100%" />
+                                <CardImage 
+                                    cardId={card.tokenId || i} 
+                                    src={card.imageURI?.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')} 
+                                    alt={card.name} 
+                                />
                                 <h3 style={{margin:'10px 0'}}>{card.name}</h3>
                                 <p style={{fontWeight:'bold', color:'#f57f17'}}>{card.rarity}</p>
                                 <div style={{display:'flex', justifyContent:'space-around', fontSize:'0.9rem'}}>

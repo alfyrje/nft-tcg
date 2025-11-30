@@ -66,9 +66,9 @@ export default function Collection({address, contractAddress}){
             const contract = new ethers.Contract(contractAddress, CardNFTAbi.abi, signer);
             
             const tokenIds = await contract.getTokensOfOwner(address);
-            const loadedCards = [];
             
-            for(let id of tokenIds) {
+            // Load all cards in parallel for faster loading
+            const cardPromises = tokenIds.map(async (id) => {
                 const cardData = await contract.getCard(id);
                 let meta = {};
                 try {
@@ -81,9 +81,7 @@ export default function Collection({address, contractAddress}){
                     meta = { name: `Card #${id}`, image: '' };
                 }
 
-                console.log(meta)
-
-                loadedCards.push({
+                return {
                     id: id.toString(),
                     attack: cardData.attack,
                     health: cardData.health,
@@ -94,8 +92,10 @@ export default function Collection({address, contractAddress}){
                     image: meta.image ? meta.image.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/') : '',
                     rarityStr: ['Common','Rare','Epic','Legendary','Mythic'][Number(cardData.rarity)],
                     attrStr: ['Fire','Water','Earth','Steel','Nature'][Number(cardData.attr)]
-                });
-            }
+                };
+            });
+            
+            const loadedCards = await Promise.all(cardPromises);
             setCards(loadedCards);
         } catch(e) {
             console.error(e);
