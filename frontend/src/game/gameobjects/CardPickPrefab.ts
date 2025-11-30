@@ -15,9 +15,7 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
     constructor(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, cardCollectionInfo: CardCollectionInfo, addToScene: boolean = true) {
         super(scene)
 
-        console.log(`Length: ${cardCollectionInfo.cardList.length}`)
-
-        var title = scene.add.text(0, 0, 'Choose your card')
+        var title = scene.add.text(0, 0, 'Select 3 of your cards')
         title.setFontSize(35)
 
         this.cardCollection = new CardCollection(scene, new CardCollectionConfig({
@@ -47,8 +45,16 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
         }
     }
 
+    update() {
+        this.queueButton.setDisabled(this.cardPickController.selectedCards().length < 3)
+    }
+
     private onQueueButtonPressed() {
         this.onQueuePressed()
+    }
+
+    selectedCardsIds(): string[] {
+        return this.cardPickController.selectedCards().map(x => x.getCardInfo().id!)
     }
 }
 

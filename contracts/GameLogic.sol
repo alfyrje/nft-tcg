@@ -18,6 +18,7 @@ contract GameLogic is Ownable {
         bool challengerReady;
         bool opponentReady;
         BattleState state;
+        uint256 id;
     }
 
     mapping(uint256 => Battle) public battles;
@@ -27,7 +28,8 @@ contract GameLogic is Ownable {
     uint256[3] public waitingDeck;
 
     event BattleCreated(uint256 indexed battleId, address indexed p1, address indexed p2);
-    event BattleResolved(uint256 indexed battleId, address winner, address loser);
+    event BattleStep(uint256 indexed battleId, uint256 p1CardIndex, uint256 p2CardIndex, uint256 p1HealthAfter, uint256 p2HealthAfter, uint256 damage, uint256 attackSide);
+    event BattleResolved(uint256 indexed battleId, address winner, address loser, uint256 totalSteps);
 
     constructor(address cardAddress) Ownable(msg.sender) { card = CardNFT(cardAddress); }
 
@@ -51,6 +53,7 @@ contract GameLogic is Ownable {
             b.opponent = msg.sender;
             b.opponentCards = deck;
             b.opponentReady = true;
+            b.id = id;
             
             b.state = BattleState.Ready;
             
@@ -89,20 +92,41 @@ contract GameLogic is Ownable {
         }
     }
 
+    /**
+     * @notice Get a card id for a given battle side and slot index
+     * @param battleId The id of the battle
+     * @param side 0 = challenger, 1 = opponent
+     * @param index Slot index in the side's deck (0..2)
+     */
+    function getCardIdOfSide(uint256 battleId, uint8 side, uint8 index) public view returns (uint256) {
+        require(index < 3, "Index out of range");
+        Battle storage b = battles[battleId];
+        if(side == 0) return b.challengerCards[index];
+        if(side == 1) return b.opponentCards[index];
+        revert("Invalid side");
+    }
+
+    function getBattleSideAddress(uint256 battleId, uint8 side) public view returns (address) {
+        Battle storage b = battles[battleId];
+        if(side == 0) return b.challenger;
+        if (side == 1) return b.opponent;
+        revert("Invalid side");
+    }
+
     function resolveBattle(uint256 battleId) external {
         Battle storage b = battles[battleId];
         require(b.state == BattleState.Ready);
-        (uint8 winner,) = _simulate(b);
+        (uint8 winner,, uint256 totalSteps) = _simulate(b);
         if(winner==1){
             address loser = b.opponent;
             address winnerAddr = b.challenger;
             _transferRandomFrom(loser, winnerAddr, b.opponentCards);
-            emit BattleResolved(battleId, winnerAddr, loser);
+            emit BattleResolved(battleId, winnerAddr, loser, totalSteps);
         } else {
             address loser = b.challenger;
             address winnerAddr = b.opponent;
             _transferRandomFrom(loser, winnerAddr, b.challengerCards);
-            emit BattleResolved(battleId, winnerAddr, loser);
+            emit BattleResolved(battleId, winnerAddr, loser, totalSteps);
         }
         b.state = BattleState.Resolved;
     }
@@ -113,7 +137,7 @@ contract GameLogic is Ownable {
         card.safeTransferFrom(from, to, tokenId);
     }
 
-    function _simulate(Battle storage b) internal view returns(uint8 winner, uint256 wonToken) {
+    function _simulate(Battle storage b) internal returns(uint8 winner, uint256 wonToken, uint256 stepCount) {
         CardNFT.Card memory c0;
         CardNFT.Card memory c1;
         
@@ -137,21 +161,23 @@ contract GameLogic is Ownable {
                 while(B[tgt].hp==0){ tgt = (tgt+1)%3; }
                 uint dmg = _computeDamage(A[idx].atk, A[idx].attr, B[tgt].attr);
                 if(dmg >= B[tgt].hp) { B[tgt].hp = 0; aliveB--; } else { B[tgt].hp = uint16(uint(B[tgt].hp) - dmg); }
+                emit BattleStep(b.id, idx, tgt, A[idx].hp, B[tgt].hp, dmg, 0);
             } else {
                 uint tgt = uint(uint256(keccak256(abi.encodePacked(seed, turnIndex, "B"))) % 3);
                 while(A[tgt].hp==0){ tgt = (tgt+1)%3; }
                 uint dmg = _computeDamage(B[idx].atk, B[idx].attr, A[tgt].attr);
                 if(dmg >= A[tgt].hp) { A[tgt].hp = 0; aliveA--; } else { A[tgt].hp = uint16(uint(A[tgt].hp) - dmg); }
+                emit BattleStep(b.id, tgt, idx, A[tgt].hp, B[idx].hp, dmg, 1);
             }
             turnIndex++;
             if(turnIndex>0 && turnIndex%50==0){ seed = keccak256(abi.encodePacked(seed, turnIndex)); }
         }
-        if(aliveB==0) return (1, b.opponentCards[uint(uint256(seed)%3)]);
-        return (2, b.challengerCards[uint(uint256(seed)%3)]);
+        if(aliveB==0) return (1, b.opponentCards[uint(uint256(seed)%3)], turnIndex);
+        return (2, b.challengerCards[uint(uint256(seed)%3)], turnIndex);
     }
 
     function _nextAttacker(Temp[3] memory A, Temp[3] memory B) internal pure returns (uint8) {
-        uint highestSpd = 0;
+        uint highestSpd = type(uint).min; // Ensure at least one card is selected
         uint8 idx = 0;
         bool isA = true;
         for(uint i=0;i<3;i++){

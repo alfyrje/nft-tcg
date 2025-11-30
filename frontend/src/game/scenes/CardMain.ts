@@ -14,17 +14,20 @@ import CardPickPrefab from "../gameobjects/CardPickPrefab";
 import CardAttackPrefab from "../gameobjects/CardAttackPrefab";
 import BattleResultPrefab from "../gameobjects/BattleResultPrefab";
 import { CardServerInteractor } from "./CardServerInteractor";
+import QueueingPrefab from "../gameobjects/QueueingPrefab";
 
 
 // "Every great game begins with a single scene. Let's make this one unforgettable!"
 export class CardMain extends Phaser.Scene {
     private zone: Phaser.GameObjects.Zone
-    private cardPicker: CardPickPrefab
+    private cardPicker?: CardPickPrefab
     private cardBattle: CardAttackPrefab
     private battleResult: BattleResultPrefab
+    private queueing: QueueingPrefab
 
     private cardCollectionInfoCache?: CardCollectionInfo
     private cardServerInteractor: CardServerInteractor
+    private playbackInfo?: BattlePlaybackInfo
 
     constructor() {
         super('CardMain');
@@ -40,6 +43,10 @@ export class CardMain extends Phaser.Scene {
     preload() {
         // Load assets
         loadCardAssets(this)
+    }
+
+    invalidateCardCollectionInfo() {
+        this.cardCollectionInfoCache = undefined
     }
 
     async getCardCollectionInfo(): Promise<CardCollectionInfo> {
@@ -86,6 +93,8 @@ export class CardMain extends Phaser.Scene {
     }
 
     getBattlePlaybackInfo() : BattlePlaybackInfo {
+        return this.playbackInfo!
+        /*
         var deckEnemy = new CardCollectionInfo([
             new CardInfo({
                 attack: 20,
@@ -135,7 +144,7 @@ export class CardMain extends Phaser.Scene {
                     damage: 10,
                 }
             ]
-        }
+        }*/
     }
 
     createBase() {
@@ -154,34 +163,52 @@ export class CardMain extends Phaser.Scene {
     async loadCardPicker() {
         this.cardPicker = new CardPickPrefab(this, this.zone, await this.getCardCollectionInfo())
         this.cardPicker.onQueuePressed = () => {
-            this.cameras.main.fadeOut(200, 0, 0, 0)
+            this.startQueueing()
+        }
+    }
 
-            let handler = () => {
-                this.cameras.main.off(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handler)
-                this.onBattleReportedFromServer()
-            }
-
-            this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handler)
+    startQueueing() {
+        this.queueing = new QueueingPrefab(this, this.zone, this.cardServerInteractor, this.cardPicker!.selectedCardsIds(), true)
+        this.queueing.onBattleResolved = (playbackData: BattlePlaybackInfo) => {
+            this.playbackInfo = playbackData
+            this.onBattleReportedFromServer()
         }
     }
 
     loadBattle() {
-        this.cardBattle = new CardAttackPrefab(this, this.zone, this.getBattlePlaybackInfo())
+        this.cardBattle = new CardAttackPrefab(this, this.zone, this.getBattlePlaybackInfo(), this.cardServerInteractor)
         this.cardBattle.onBattleCompleteHandler = this.onBattlePlaybackCompleted.bind(this)
     }
 
     onBattleReportedFromServer() {
-        this.cardPicker.destroy()
-        this.loadBattle()
+        this.cameras.main.fadeOut(200, 0, 0, 0)
 
-        this.cameras.main.fadeIn(200, 0, 0, 0)
-        this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, () => {
-            this.cardBattle.startPlayback()
-        })
+        let handler = () => {
+            this.cameras.main.off(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handler)
+            
+            this.cardPicker?.destroy()
+            this.cardPicker = undefined;
+            this.queueing.destroy()
+
+            this.loadBattle()
+
+            this.cameras.main.fadeIn(200, 0, 0, 0)
+
+            let playback = () => {
+                this.cardBattle.startPlayback()
+                this.cameras.main.off(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, playback)
+            }
+
+            this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, playback)
+        }
+
+        this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handler)
     }
 
     onBattlePlaybackCompleted() {
-        this.battleResult = new BattleResultPrefab(this, this.zone, this.getBattlePlaybackInfo())
+        this.invalidateCardCollectionInfo()
+
+        this.battleResult = new BattleResultPrefab(this, this.zone, this.getBattlePlaybackInfo(), this.cardServerInteractor)
         this.battleResult.onReplayRequestedHandler = this.onReplayRequested.bind(this)
     }
 
@@ -205,5 +232,11 @@ export class CardMain extends Phaser.Scene {
     async create() {
         this.createBase()
         await this.loadCardPicker()
+    }
+
+    update(time: number, delta: number): void {
+        if (this.cardPicker) {
+            this.cardPicker.update()
+        }
     }
 }

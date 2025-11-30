@@ -1,4 +1,5 @@
 import { BattlePlaybackInfo } from "../models/BattlePlaybackInfo";
+import { CardServerInteractor } from "../scenes/CardServerInteractor";
 import Button from "./Button";
 
 class BattleResultPrefab extends Phaser.GameObjects.Container {
@@ -8,12 +9,14 @@ class BattleResultPrefab extends Phaser.GameObjects.Container {
     private label: Phaser.GameObjects.Text
     private background: Phaser.GameObjects.Image
     private button: Button
+    private interactor: CardServerInteractor
 
     onReplayRequestedHandler: Function
 
-    constructor(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, playbackResult: BattlePlaybackInfo, addToScene: boolean = true) {
+    constructor(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, playbackResult: BattlePlaybackInfo, interactor: CardServerInteractor, addToScene: boolean = true) {
         super(scene)
 
+        this.interactor = interactor
         this.create(scene, zone, playbackResult)
 
         if (addToScene) {
@@ -22,14 +25,15 @@ class BattleResultPrefab extends Phaser.GameObjects.Container {
     }
 
     private isWinning(playbackResult: BattlePlaybackInfo): boolean {
-        return true
+        var winAddr = playbackResult.deckWonIndex == 0 ? playbackResult.deckA.ownerAddress : playbackResult.deckB.ownerAddress
+        return winAddr.toLowerCase() == this.interactor.getPlayerAddress().toLowerCase()
     }
 
     create(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, playbackResult: BattlePlaybackInfo) {
-        this.label = scene.add.text(0, 0, BattleResultPrefab.YOU_WIN)
+        this.label = scene.add.text(0, 0, BattleResultPrefab.YOU_LOSE)
 
         if (this.isWinning(playbackResult)) {
-            this.label.text = BattleResultPrefab.YOU_LOSE
+            this.label.text = BattleResultPrefab.YOU_WIN
         }
 
         this.label.setFontSize(35)

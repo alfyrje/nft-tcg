@@ -1,4 +1,5 @@
 import CardCollectionInfo from "./CardCollectionInfo";
+import CardAttackPlaybackInfo from "../models/CardAttackPlaybackInfo";
 
 class DeckData {
     ownerAddress: string

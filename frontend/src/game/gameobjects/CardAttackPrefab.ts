@@ -3,23 +3,24 @@ import CardCollection from "./CardCollection"
 import ShakePosition from 'phaser3-rex-plugins/plugins/shakeposition.js';
 import CardCollectionConfig from "./CardCollectionConfig";
 import BattleResultPrefab from "./BattleResultPrefab";
+import { CardServerInteractor } from "../scenes/CardServerInteractor";
 
 class CardAttackPrefab extends Phaser.GameObjects.Container {
     private playbackChain: Phaser.Tweens.TweenChain
 
     onBattleCompleteHandler: Function
 
-    constructor(newScene: Phaser.Scene, zone: Phaser.GameObjects.Zone, playbackInfo: BattlePlaybackInfo, addToScene: boolean = true) {
+    constructor(newScene: Phaser.Scene, zone: Phaser.GameObjects.Zone, playbackInfo: BattlePlaybackInfo, interactor: CardServerInteractor, addToScene: boolean = true) {
         super(newScene)
 
-        this.create(playbackInfo, zone)
+        this.create(playbackInfo, zone, interactor)
 
         if (addToScene) {
             this.scene.children.add(this)
         }
     }
 
-    create(playbackInfo: BattlePlaybackInfo, zone: Phaser.GameObjects.Zone) {
+    create(playbackInfo: BattlePlaybackInfo, zone: Phaser.GameObjects.Zone, interactor: CardServerInteractor, ) {
         var deckA =  new CardCollection(this.scene, new CardCollectionConfig({
             spacing: 20,
             info: playbackInfo.deckA.cardCollectionInfo,
@@ -30,8 +31,16 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
             info: playbackInfo.deckB.cardCollectionInfo,
         }), false)
 
-        Phaser.Display.Align.In.Center(deckA.container(), zone, 0, zone.width / 3)
-        Phaser.Display.Align.In.Center(deckB.container(), zone, 0, -zone.width / 6)
+        var playerAddr = interactor.getPlayerAddress().toLowerCase()
+
+        if (playbackInfo.deckA.ownerAddress.toLowerCase() == playerAddr) {
+            Phaser.Display.Align.In.Center(deckA.container(), zone, 0, zone.width / 3)
+            Phaser.Display.Align.In.Center(deckB.container(), zone, 0, -zone.width / 6)
+        }
+        else {
+            Phaser.Display.Align.In.Center(deckA.container(), zone, 0, -zone.width / 6)
+            Phaser.Display.Align.In.Center(deckB.container(), zone, 0, zone.width / 3)
+        }
 
         this.queuePlaybackTween(playbackInfo, zone, deckA, deckB)
 
@@ -48,22 +57,25 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
 
         for (let i = 0; i < playbackInfo.attacks.length; i++) {
             // Move the card to the middle and attack
-            var attackInfo = playbackInfo.attacks[i]
-            var deckACurrentCard = deckA.cards()[attackInfo.cardAIndex]
-            var deckBCurrentCard = deckB.cards()[attackInfo.cardBIndex]
+            let attackInfo = playbackInfo.attacks[i]
 
-            var attacking = attackInfo.attacker == 0  ? deckACurrentCard : deckBCurrentCard
-            var receiving = attackInfo.attacker == 0 ? deckBCurrentCard : deckACurrentCard
+            let deckACurrentCard = deckA.cards()[attackInfo.cardAIndex]
+            let deckBCurrentCard = deckB.cards()[attackInfo.cardBIndex]
 
-            var receivingHp = attackInfo.attacker == 0 ? attackInfo.cardBHealthAfter : attackInfo.cardAHealthAfter
+            let attacking = attackInfo.attacker == 0  ? deckACurrentCard : deckBCurrentCard
+            let receiving = attackInfo.attacker == 0 ? deckBCurrentCard : deckACurrentCard
 
-            var attackCardWorld = attacking.container().getWorldPoint()
-            var receiveCardWorld = receiving.container().getWorldPoint()
+            let receivingHp = attackInfo.attacker == 0 ? attackInfo.cardBHealthAfter : attackInfo.cardAHealthAfter
 
-            var directionToReceiver = (receiveCardWorld.y - attackCardWorld.y <= 0) ? -1 : 1;
-            var distanceRise = 60
+            console.log(`${receivingHp} ${attackInfo.attacker}`)
 
-            var tweenAttackKaboom: Phaser.Types.Tweens.TweenBuilderConfig = {
+            let attackCardWorld = attacking.container().getWorldPoint()
+            let receiveCardWorld = receiving.container().getWorldPoint()
+
+            let directionToReceiver = (receiveCardWorld.y - attackCardWorld.y <= 0) ? -1 : 1;
+            let distanceRise = 60
+
+            let tweenAttackKaboom: Phaser.Types.Tweens.TweenBuilderConfig = {
                 targets: attacking.container(),
                 x: receiving.container().x,
                 y: (attackCardWorld.y + receiveCardWorld.y) / 2.0 + distanceRise * directionToReceiver - attackCardWorld.y,
@@ -77,9 +89,12 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
             const attackConnectProgress = 0.5
 
             let isReceivingDead = receivingHp <= 0
+            let iCopy = i
 
             let receivingCopy = receiving.container()
             let shaken: boolean = false
+
+            let receivingContainerCopy = receiving.container()
 
             //let isKillingHit = isReceivingDead && (i == playbackInfo.attacks.length - 1)
 
@@ -87,7 +102,7 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
                 if (tween.totalProgress > attackConnectProgress && !shaken) {
                     shaken = true
 
-                    var shake = new ShakePosition(receivingCopy, {
+                    let shake = new ShakePosition(receivingCopy, {
                         duration: 300,
                         magnitude: 20,
                     })
@@ -95,11 +110,13 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
                     shake.shake()
 
                     if (isReceivingDead) {
+                        console.log(`Trying to dip ${iCopy}`)
+
                         shake.on('complete', () => {
                             var tweenDip : Phaser.Types.Tweens.TweenBuilderConfig = {
-                                targets: receiving.container(),
-                                x: receiving.container().x,
-                                y: receiving.container().y + directionToReceiver * dippingDistance,
+                                targets: receivingContainerCopy,
+                                x: receivingContainerCopy.x,
+                                y: receivingContainerCopy.y + directionToReceiver * dippingDistance,
                                 duration: 200,
                                 ease: "Sine.easeOut",
                                 delay: 300
@@ -111,7 +128,7 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
                 }
             }
 
-            var tweenRetreat : Phaser.Types.Tweens.TweenBuilderConfig = {
+            let tweenRetreat : Phaser.Types.Tweens.TweenBuilderConfig = {
                 targets: attacking.container(),
                 x: attacking.container().x,
                 y: 0,
@@ -122,7 +139,7 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
             tweens.push(tweenRetreat)
         }
 
-        var delayTween: Phaser.Types.Tweens.TweenBuilderConfig = {
+        let delayTween: Phaser.Types.Tweens.TweenBuilderConfig = {
             delay: 1000,
             targets: this
         }

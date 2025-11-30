@@ -12,9 +12,15 @@ module.exports = {
     }
   },
   networks: {
-    hardhat: {},
+    hardhat: {
+      mining: {
+        auto: true,
+        interval: 0
+      }
+    },
     localhost: {
       url: "http://127.0.0.1:8545",
+      polling: 100  // Poll every 100ms instead of default 4000ms
     },
     amoy: {
       url: process.env.AMOY_RPC_URL,

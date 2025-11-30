@@ -1,3 +1,4 @@
+import ShakePosition from "phaser3-rex-plugins/plugins/behaviors/shake/ShakePosition";
 import Card from "./Card";
 import CardCollection from "./CardCollection";
 import CardPickConfig from "./CardPickConfig";
@@ -14,6 +15,8 @@ class CardPickController {
     private scene: Phaser.Scene;
     private config: CardPickConfig;
     private selectedList: Card[];
+
+    static MAX_ALLOWED_CARDS = 3
 
     constructor(scene: Phaser.Scene, newCollection: CardCollection, newConfig: CardPickConfig) {
         this.collection = newCollection;
@@ -105,9 +108,21 @@ class CardPickController {
 
             this.tryRetreatCard(card)
         } else {
+            // Nuh uh
+            if (this.selectedList.length >= CardPickController.MAX_ALLOWED_CARDS) {
+                var shakePosition = new ShakePosition(card.container())
+                shakePosition.shake(200, 10)
+
+                return
+            }
+
             this.selectedList.push(card)
             card.setHighlighted(true)
         }
+    }
+
+    selectedCards(): Card[] {
+        return this.selectedList
     }
 }
 

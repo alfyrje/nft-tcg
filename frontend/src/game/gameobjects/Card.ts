@@ -5,6 +5,7 @@ export default class Card {
     private visualContainer: Phaser.GameObjects.Container
     private eventEmitter: Phaser.Events.EventEmitter;
     private highlightBackground: Phaser.GameObjects.Image
+    private cardInfo: CardInfo
 
     static HOVER_ENTER_EVENT: string = "hoverEnter" as const;
     static HOVER_EXIT_EVENT: string = "hoverLeave" as const;
@@ -13,6 +14,7 @@ export default class Card {
     constructor(scene: Phaser.Scene, cardInfo: CardInfo, addToScene: boolean) {
         this.scene = scene
         this.eventEmitter = new Phaser.Events.EventEmitter()
+        this.cardInfo = cardInfo
 
         this.visualContainer = this.scene.make.container({
             x: 0,
@@ -137,5 +139,9 @@ export default class Card {
     setHighlighted(active: boolean) {
         this.highlightBackground.active = active
         this.highlightBackground.visible = active
+    }
+
+    getCardInfo() : CardInfo {
+        return this.cardInfo
     }
 }

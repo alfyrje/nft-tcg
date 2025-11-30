@@ -14,12 +14,11 @@ const config: Phaser.Types.Core.GameConfig = {
     width: 1024,
     height: 768,
     parent: 'game-container',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#000000',
     scene: [
         CardMain
     ],
     antialias: false,
-    transparent: true
 };
 
 const StartGame = (parent: string, serverInteractor: CardServerInteractor) => {

@@ -3,11 +3,14 @@ class Button extends Phaser.GameObjects.Container {
     private backgroundObject: Phaser.GameObjects.Sprite
     private hoverBackground: Phaser.GameObjects.Sprite
     private eventEmitter: Phaser.Events.EventEmitter
+    private disabled: boolean
 
     static PRESSED_EVENT = "pressed"
 
     constructor(scene: Phaser.Scene, x: number, y: number, backgroundKey: string, spriteNumber: integer, spriteScale: number, textConfig: Phaser.Types.GameObjects.Text.TextConfig, addToScene: boolean = true) {
         super(scene, x, y)
+
+        this.disabled = false
 
         this.backgroundObject = this.scene.make.sprite({
             x: x,
@@ -79,6 +82,22 @@ class Button extends Phaser.GameObjects.Container {
 
     private refreshAlignment() {
         Phaser.Display.Align.In.Center(this.labelObject, this.backgroundObject)
+    }
+
+    updateDisabled() {
+        if (this.disabled) {
+            this.disableInteractive()
+            this.setAlpha(0.4)
+        }
+        else {
+            this.setInteractive()
+            this.setAlpha(1)
+        }
+    }
+
+    setDisabled(disabled: boolean) {
+        this.disabled = disabled
+        this.updateDisabled()
     }
 }
 

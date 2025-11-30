@@ -25,7 +25,7 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
 
         if (currentGame.current === null)
         {
-            var serverInteractor = new CardServerInteractor(contractAddress, address, CardNFTAbi.abi)
+            var serverInteractor = new CardServerInteractor(address, contractAddress, CardNFTAbi.abi, gameLogicAddress, GameLogicAbi.abi)
             currentGame.current = StartGame("game-container", serverInteractor)
         }
     
@@ -46,15 +46,18 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
             }
         };
 
-        gameContract.on("BattleCreated", onBattleCreated);
-        gameContract.on("BattleResolved", onBattleResolved);
+        //gameContract.on("BattleCreated", onBattleCreated);
+        //gameContract.on("BattleResolved", onBattleResolved);
 
         // Check for missed events/active battles on mount
-        checkPastEvents(gameContract, provider);
+        //checkPastEvents(gameContract, provider);
 
         return () => {
             gameContract.off("BattleCreated", onBattleCreated);
             gameContract.off("BattleResolved", onBattleResolved);
+
+            currentGame.current?.destroy()
+            currentGame.current = undefined
         };
     }, [gameLogicAddress, address]);
 
