@@ -284,7 +284,7 @@ export class CardServerInteractor {
             const tx = await withRetry(
                 () => gameContract.registerForBattle(deckBigInt),
                 8,
-                500,
+                1250,
                 "registerForBattle"
             )
             await tx.wait();
@@ -353,7 +353,7 @@ export class CardServerInteractor {
                     gasLimit: 3000000n // 3M gas should be enough for most battles
                 }),
                 8,
-                500,
+                1250,
                 "resolveBattle"
             )
             console.log(`resolveBattle tx sent: ${tx.hash}, waiting for confirmation...`)
