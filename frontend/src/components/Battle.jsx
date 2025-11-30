@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import GameLogicAbi from '../GameLogic.json';
 import CardNFTAbi from '../CardNFT.json';
+import StartGame from '../game/main';
+import { CardServerInteractor } from '../game/scenes/CardServerInteractor';
 
 export default function Battle({ address, contractAddress, gameLogicAddress }) {
     const [myCards, setMyCards] = useState([]);
     const [selected, setSelected] = useState([]);
     const [status, setStatus] = useState('');
     const [battleLog, setBattleLog] = useState([]);
+    const currentGame = useRef(null)
 
     useEffect(() => {
         if (address && contractAddress) loadMyCards();
@@ -20,6 +23,12 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const gameContract = new ethers.Contract(gameLogicAddress, GameLogicAbi.abi, provider);
 
+        if (currentGame.current === null)
+        {
+            var serverInteractor = new CardServerInteractor(address, contractAddress, CardNFTAbi.abi, gameLogicAddress, GameLogicAbi.abi)
+            currentGame.current = StartGame("game-container", serverInteractor)
+        }
+    
         const onBattleCreated = (battleId, p1, p2) => {
             console.log("BattleCreated Event:", battleId, p1, p2);
             if (p1.toLowerCase() === address.toLowerCase() || p2.toLowerCase() === address.toLowerCase()) {
@@ -37,15 +46,18 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
             }
         };
 
-        gameContract.on("BattleCreated", onBattleCreated);
-        gameContract.on("BattleResolved", onBattleResolved);
+        //gameContract.on("BattleCreated", onBattleCreated);
+        //gameContract.on("BattleResolved", onBattleResolved);
 
         // Check for missed events/active battles on mount
-        checkPastEvents(gameContract, provider);
+        //checkPastEvents(gameContract, provider);
 
         return () => {
             gameContract.off("BattleCreated", onBattleCreated);
             gameContract.off("BattleResolved", onBattleResolved);
+
+            currentGame.current?.destroy()
+            currentGame.current = undefined
         };
     }, [gameLogicAddress, address]);
 
@@ -179,6 +191,7 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
                     checkPastEvents(gameContract, provider);
                 }}>Check Status</button>
             </div>
+            <div id="game-container"></div>
         </div>
     );
 }
