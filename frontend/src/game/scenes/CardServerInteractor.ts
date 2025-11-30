@@ -154,7 +154,8 @@ export class CardServerInteractor {
             name: cardName,
             attack: Number(c.attack),
             health: Number(c.health),
-            imageUrl: imageUrl
+            imageUrl: imageUrl,
+            speed: Number(c.speed),
         })
     }
 

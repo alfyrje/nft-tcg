@@ -135,14 +135,14 @@ export default class Card {
         var attackIcon = this.scene.make.image({
             key: 'iconSheet',
             frame: 86,
-            x: 20,
+            x: -7,
             y: 90,
             add: false
         })
         attackIcon.setScale(0.8)
 
         var attackLabel = this.scene.make.text({
-            x: 35,
+            x: 8,
             y: 82,
             text: String(cardInfo.attack ?? 0),
             style: { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' }
@@ -152,7 +152,7 @@ export default class Card {
         var healthIcon = this.scene.make.image({
             key: 'iconSheet',
             frame: 6,
-            x: -35,
+            x: -50,
             y: 90,
             add: false
         })
@@ -160,9 +160,26 @@ export default class Card {
 
         this.currentHealth = cardInfo.health ?? 0
         this.healthLabel = this.scene.make.text({
-            x: -20,
+            x: -35,
             y: 82,
             text: String(this.currentHealth),
+            style: { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' }
+        }, false)
+
+        // Speed icon and text (using frame 131)
+        var speedIcon = this.scene.make.image({
+            key: 'iconSheet',
+            frame: 131,
+            x: 35,
+            y: 90,
+            add: false
+        })
+        speedIcon.setScale(0.8)
+
+        var speedLabel = this.scene.make.text({
+            x: 50,
+            y: 82,
+            text: String(cardInfo.speed ?? 0),
             style: { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' }
         }, false)
 
@@ -179,6 +196,8 @@ export default class Card {
         this.visualContainer.add(attackLabel)
         this.visualContainer.add(healthIcon)
         this.visualContainer.add(this.healthLabel)
+        this.visualContainer.add(speedIcon)
+        this.visualContainer.add(speedLabel)
         //this.container.add(cardFrame)
 
         this.visualContainer.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, (_1: any, _2: number, _3: number, _4: PointerEvent) => {
