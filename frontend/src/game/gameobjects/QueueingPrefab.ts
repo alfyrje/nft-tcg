@@ -11,12 +11,16 @@ export interface PendingBattleInfo {
 class QueueingPrefab extends Phaser.GameObjects.Container {
     static QUEUEING = "Queueing"
     static LOADING = "Loading"
-    static RESUMING = "Resuming..."
+    static RESUMING = "Resuming"
 
     private label: Phaser.GameObjects.Text
     private background: Phaser.GameObjects.Image
     private button: Button
     private cardServerInteractor: CardServerInteractor
+    private currentMessage: string
+    private dots: number = 0
+    private updateTimer?: Phaser.Time.TimerEvent
+    private zone: Phaser.GameObjects.Zone
 
     onBattleResolved?: Function
 
@@ -24,6 +28,7 @@ class QueueingPrefab extends Phaser.GameObjects.Container {
         super(scene)
 
         this.cardServerInteractor = cardServerInteractor;
+        this.zone = zone;
 
         this.create(scene, zone, pendingBattle != null)
         
@@ -44,7 +49,8 @@ class QueueingPrefab extends Phaser.GameObjects.Container {
     }
 
     create(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, isResuming: boolean = false) {
-        this.label = scene.add.text(0, 0, isResuming ? QueueingPrefab.RESUMING : QueueingPrefab.QUEUEING)
+        this.currentMessage = isResuming ? QueueingPrefab.RESUMING : QueueingPrefab.QUEUEING
+        this.label = scene.add.text(0, 0, this.currentMessage)
 
         this.label.setFontSize(35)
         scene.children.remove(this.label)
@@ -76,6 +82,24 @@ class QueueingPrefab extends Phaser.GameObjects.Container {
         Phaser.Display.Align.In.Center(this.label, zone, 0, -zone.height / 10)
         Phaser.Display.Align.In.Center(this.button, zone, 0, zone.height / 10)
         Phaser.Display.Align.In.Center(this.background, zone, 0, 0)
+
+        // Animate dots
+        this.updateTimer = scene.time.addEvent({
+            delay: 400,
+            callback: () => {
+                this.dots = (this.dots + 1) % 4
+                const dotsStr = '.'.repeat(this.dots)
+                this.label.setText(this.currentMessage + dotsStr)
+            },
+            loop: true
+        })
+    }
+
+    setMessage(message: string) {
+        this.currentMessage = message
+        this.dots = 0
+        this.label.setText(message)
+        Phaser.Display.Align.In.Center(this.label, this.zone, 0, -this.zone.height / 10)
     }
 
     async doQueue(cards: string[]) {
@@ -101,7 +125,7 @@ class QueueingPrefab extends Phaser.GameObjects.Container {
     }
 
     async onBattleCreatedHandler(id: string, p1: string, p2: string) {
-        this.label.text = QueueingPrefab.LOADING;
+        this.setMessage(QueueingPrefab.LOADING)
 
         let playbackDataPromise = this.cardServerInteractor.recordPlaybackInfoAsync(id)
 
@@ -114,6 +138,14 @@ class QueueingPrefab extends Phaser.GameObjects.Container {
         if (this.onBattleResolved) {
             this.onBattleResolved(playbackData)
         }
+    }
+
+    destroy(fromScene?: boolean): void {
+        if (this.updateTimer) {
+            this.updateTimer.destroy()
+            this.updateTimer = undefined
+        }
+        super.destroy(fromScene)
     }
 }
 

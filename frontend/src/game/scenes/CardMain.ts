@@ -15,6 +15,7 @@ import CardAttackPrefab from "../gameobjects/CardAttackPrefab";
 import BattleResultPrefab from "../gameobjects/BattleResultPrefab";
 import { CardServerInteractor } from "./CardServerInteractor";
 import QueueingPrefab, { PendingBattleInfo } from "../gameobjects/QueueingPrefab";
+import LoadingPrefab from "../gameobjects/LoadingPrefab";
 
 
 // "Every great game begins with a single scene. Let's make this one unforgettable!"
@@ -28,6 +29,7 @@ export class CardMain extends Phaser.Scene {
     private cardCollectionInfoCache?: CardCollectionInfo
     private cardServerInteractor: CardServerInteractor
     private playbackInfo?: BattlePlaybackInfo
+    private loading?: LoadingPrefab
 
     constructor() {
         super('CardMain');
@@ -161,7 +163,16 @@ export class CardMain extends Phaser.Scene {
     }
 
     async loadCardPicker() {
-        this.cardPicker = new CardPickPrefab(this, this.zone, await this.getCardCollectionInfo())
+        // Show loading screen
+        this.loading = new LoadingPrefab(this, this.zone, "Loading Cards")
+        
+        const cardInfo = await this.getCardCollectionInfo()
+        
+        // Hide loading screen
+        this.loading.destroy()
+        this.loading = undefined
+        
+        this.cardPicker = new CardPickPrefab(this, this.zone, cardInfo)
         this.cardPicker.onQueuePressed = () => {
             this.startQueueing()
         }
@@ -224,9 +235,23 @@ export class CardMain extends Phaser.Scene {
             this.battleResult.destroy()
             this.cardBattle.destroy()
 
-            await this.loadCardPicker()
-
+            // Show loading screen before fade in
+            this.loading = new LoadingPrefab(this, this.zone, "Loading Cards")
+            
+            // Fade in to show loading screen
             this.cameras.main.fadeIn(200, 0, 0, 0)
+            
+            // Load cards while loading screen is visible
+            const cardInfo = await this.getCardCollectionInfo()
+            
+            // Hide loading screen and show card picker
+            this.loading.destroy()
+            this.loading = undefined
+            
+            this.cardPicker = new CardPickPrefab(this, this.zone, cardInfo)
+            this.cardPicker.onQueuePressed = () => {
+                this.startQueueing()
+            }
         }
 
         this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handleFadeOutFunc)
@@ -235,8 +260,15 @@ export class CardMain extends Phaser.Scene {
     async create() {
         this.createBase()
         
+        // Show loading while checking pending state
+        this.loading = new LoadingPrefab(this, this.zone, "Loading")
+        
         // Check if player has pending queue/battle state
         const pendingState = await this.cardServerInteractor.checkPendingState()
+        
+        // Hide initial loading
+        this.loading.destroy()
+        this.loading = undefined
         
         if (pendingState.hasPendingBattle && pendingState.battleId) {
             // Player has an unresolved battle - show queueing screen and resume
