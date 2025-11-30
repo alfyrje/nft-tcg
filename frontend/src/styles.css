@@ -1,3 +1,127 @@
-body{ font-family: Arial, Helvetica, sans-serif; margin:20px; }
-button{ padding:8px 12px; margin:6px; }
-.card{ border:1px solid #ddd; padding:8px; border-radius:6px; margin:8px; display:inline-block; width:180px; vertical-align:top;}
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+
+body {
+  font-family: 'Fredoka', sans-serif;
+  background-color: #e0f7fa; /* Light blue background */
+  color: #0277bd; /* Darker blue for text for contrast */
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+}
+
+h1, h2, h3 {
+  font-weight: 700;
+  color: #01579b;
+  text-shadow: 2px 2px 0px #ffffff;
+  margin-bottom: 20px;
+}
+
+h1 {
+  font-size: 4rem;
+  margin-bottom: 40px;
+}
+
+p {
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+button {
+  background-color: #4fc3f7; /* Bright light blue */
+  color: white;
+  border: 4px solid #ffffff;
+  border-radius: 50px; /* Pill shape */
+  padding: 12px 25px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+  cursor: pointer;
+  margin: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+
+button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+  background-color: #29b6f6;
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+button:disabled {
+  background-color: #b0bec5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.card {
+  background-color: white;
+  border: 4px solid #b3e5fc;
+  border-radius: 25px;
+  padding: 20px;
+  margin: 15px;
+  display: inline-block;
+  width: 300px;
+  vertical-align: top;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+  transition: transform 0.3s;
+}
+
+.card:hover {
+  transform: translateY(-5px) rotate(1deg);
+}
+
+.card img {
+  border-radius: 15px;
+  margin-bottom: 10px;
+}
+
+input[type="text"], input[type="number"] {
+  border: 3px solid #b3e5fc;
+  border-radius: 15px;
+  padding: 10px 15px;
+  font-size: 1rem;
+  font-family: 'Fredoka', sans-serif;
+  outline: none;
+  color: #0277bd;
+  margin: 5px;
+}
+
+input:focus {
+  border-color: #4fc3f7;
+}
+
+/* Navigation styling if you add the router */
+nav {
+  background-color: #ffffff;
+  padding: 10px;
+  border-radius: 30px;
+  display: inline-block;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+nav a {
+  text-decoration: none;
+  color: #0277bd;
+  font-weight: 700;
+  font-size: 1.2rem;
+  margin: 0 5px;
+  padding: 10px 20px;
+  border-radius: 20px;
+  transition: background-color 0.2s;
+}
+
+nav a:hover {
+  background-color: #e1f5fe;
+}
+
+hr {
+  border: 0;
+  height: 2px;
+  background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(179, 229, 252, 0.75), rgba(0, 0, 0, 0));
+  margin: 30px 0;
+}
