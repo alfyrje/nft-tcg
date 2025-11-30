@@ -208,6 +208,58 @@ export class CardServerInteractor {
         }
     }
 
+    /**
+     * Check if player is currently waiting in queue or has an unresolved battle
+     * Returns: { isWaiting: boolean, hasPendingBattle: boolean, battleId?: string, p1?: string, p2?: string }
+     */
+    async checkPendingState(): Promise<{ isWaiting: boolean, hasPendingBattle: boolean, battleId?: string, p1?: string, p2?: string }> {
+        try {
+            const gameContract = this.getGameContractBrowser()
+            
+            // Check if player is the waiting player
+            const waitingPlayer = await gameContract.waitingPlayer()
+            if (waitingPlayer.toLowerCase() === this.playerAddress.toLowerCase()) {
+                console.log("Player is currently waiting in queue")
+                return { isWaiting: true, hasPendingBattle: false }
+            }
+            
+            // Check for unresolved battles
+            const currentBlock = await this.provider.getBlockNumber()
+            const startBlock = Math.max(0, currentBlock - 500) // Look back further for pending battles
+            
+            const filter = gameContract.filters.BattleCreated()
+            const events = await gameContract.queryFilter(filter, startBlock, currentBlock)
+            
+            for (const e of events) {
+                if (!('args' in e) || !e.args) continue
+                
+                const [id, p1, p2] = e.args
+                
+                if (p1.toLowerCase() === this.playerAddress.toLowerCase() || p2.toLowerCase() === this.playerAddress.toLowerCase()) {
+                    // Check if resolved
+                    const resFilter = gameContract.filters.BattleResolved(id)
+                    const resEvents = await gameContract.queryFilter(resFilter, startBlock, currentBlock)
+                    
+                    if (resEvents.length === 0) {
+                        console.log(`Found unresolved battle ${id}`)
+                        return { 
+                            isWaiting: false, 
+                            hasPendingBattle: true, 
+                            battleId: id.toString(),
+                            p1: p1,
+                            p2: p2
+                        }
+                    }
+                }
+            }
+            
+            return { isWaiting: false, hasPendingBattle: false }
+        } catch (e) {
+            console.error("Error checking pending state:", e)
+            return { isWaiting: false, hasPendingBattle: false }
+        }
+    }
+
     async joinQueue(selectedCardIds: string[]): Promise<[boolean, string]> {
         if (selectedCardIds.length !== 3) return [false, 'Select exactly 3 cards'];
         try {

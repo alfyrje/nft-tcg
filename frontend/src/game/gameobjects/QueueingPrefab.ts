@@ -2,9 +2,16 @@ import { BattlePlaybackInfo } from "../models/BattlePlaybackInfo";
 import { CardServerInteractor } from "../scenes/CardServerInteractor";
 import Button from "./Button";
 
+export interface PendingBattleInfo {
+    battleId: string;
+    p1: string;
+    p2: string;
+}
+
 class QueueingPrefab extends Phaser.GameObjects.Container {
     static QUEUEING = "Queueing"
     static LOADING = "Loading"
+    static RESUMING = "Resuming..."
 
     private label: Phaser.GameObjects.Text
     private background: Phaser.GameObjects.Image
@@ -13,21 +20,31 @@ class QueueingPrefab extends Phaser.GameObjects.Container {
 
     onBattleResolved?: Function
 
-    constructor(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, cardServerInteractor: CardServerInteractor, cards: string[], addToScene: boolean = true) {
+    constructor(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, cardServerInteractor: CardServerInteractor, cards: string[] | null, addToScene: boolean = true, pendingBattle?: PendingBattleInfo) {
         super(scene)
 
         this.cardServerInteractor = cardServerInteractor;
 
-        this.create(scene, zone)
-        this.doQueue(cards)
+        this.create(scene, zone, pendingBattle != null)
+        
+        if (pendingBattle) {
+            // Resume mode - we have a pending battle, handle it directly
+            this.resumeBattle(pendingBattle)
+        } else if (cards) {
+            // Normal queue mode
+            this.doQueue(cards)
+        } else {
+            // Waiting mode - just wait for battle event
+            this.waitForBattle()
+        }
 
         if (addToScene) {
             scene.children.add(this)
         }
     }
 
-    create(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone) {
-        this.label = scene.add.text(0, 0, QueueingPrefab.QUEUEING)
+    create(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, isResuming: boolean = false) {
+        this.label = scene.add.text(0, 0, isResuming ? QueueingPrefab.RESUMING : QueueingPrefab.QUEUEING)
 
         this.label.setFontSize(35)
         scene.children.remove(this.label)
@@ -67,6 +84,20 @@ class QueueingPrefab extends Phaser.GameObjects.Container {
         }
 
         this.cardServerInteractor.joinQueue(cards)
+    }
+
+    // Wait for battle without joining queue (player is already waiting)
+    waitForBattle() {
+        this.cardServerInteractor.onBattleCreated = async (id: string, p1: string, p2: string) => {
+            await this.onBattleCreatedHandler(id, p1, p2)
+        }
+        // Just wait for events - polling will pick them up
+    }
+
+    // Resume a pending battle that was found on page load
+    async resumeBattle(pendingBattle: PendingBattleInfo) {
+        console.log(`Resuming pending battle ${pendingBattle.battleId}`)
+        await this.onBattleCreatedHandler(pendingBattle.battleId, pendingBattle.p1, pendingBattle.p2)
     }
 
     async onBattleCreatedHandler(id: string, p1: string, p2: string) {
