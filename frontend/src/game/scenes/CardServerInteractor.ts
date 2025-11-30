@@ -101,14 +101,9 @@ export class CardServerInteractor {
         let cardContract = await this.getCardContract()
         const ids = await cardContract.getTokensOfOwner(this.playerAddress);
 
-        const loaded: CardInfo[] = [];
-        for (let id of ids) {
-            // minimal info for selection
-            loaded.push(
-                await this.getCardInfo(id.toString())
-            )
-                //{ id: id.toString(), name: `Card #${id}`, attack: c.attack, health: c.health });
-        }
+        // Load all cards in parallel
+        const cardPromises = ids.map((id: any) => this.getCardInfo(id.toString()))
+        const loaded = await Promise.all(cardPromises)
 
         return new CardCollectionInfo(loaded);
     }
@@ -186,25 +181,27 @@ export class CardServerInteractor {
         const deckAAddress = await gameContract.getBattleSideAddress(battleId, 0)
         const deckBAddress = await gameContract.getBattleSideAddress(battleId, 1)
 
-        let deckACardIds: string[] = []
-        let deckBCardIds: string[] = []
-        
-        let deckACards: CardInfo[] = []
-        let deckBCards: CardInfo[] = []
-
+        // Fetch all card IDs in parallel
+        const cardIdPromises = []
         for (let i = 0; i < 3; i++) {
-            let cardAId = await gameContract.getCardIdOfSide(battleId, 0, i)
-            deckACardIds.push(cardAId)
-
-            let cardBId = await gameContract.getCardIdOfSide(battleId, 1, i)
-            deckBCardIds.push(cardBId)
-        
-            let cardA = await this.getCardInfo(cardAId);
-            let cardB = await this.getCardInfo(cardBId);
-
-            deckACards.push(cardA)
-            deckBCards.push(cardB)
+            cardIdPromises.push(gameContract.getCardIdOfSide(battleId, 0, i))
+            cardIdPromises.push(gameContract.getCardIdOfSide(battleId, 1, i))
         }
+        const cardIds = await Promise.all(cardIdPromises)
+        
+        // cardIds is [A0, B0, A1, B1, A2, B2]
+        const deckACardIds = [cardIds[0], cardIds[2], cardIds[4]]
+        const deckBCardIds = [cardIds[1], cardIds[3], cardIds[5]]
+
+        // Fetch all card info in parallel
+        const allCardInfoPromises = [
+            ...deckACardIds.map(id => this.getCardInfo(id)),
+            ...deckBCardIds.map(id => this.getCardInfo(id))
+        ]
+        const allCardInfo = await Promise.all(allCardInfoPromises)
+        
+        const deckACards = allCardInfo.slice(0, 3)
+        const deckBCards = allCardInfo.slice(3, 6)
 
         let playbackInfo = new BattlePlaybackInfo({
             deckA: {
