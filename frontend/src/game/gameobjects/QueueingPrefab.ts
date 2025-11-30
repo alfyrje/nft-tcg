@@ -53,6 +53,7 @@ class QueueingPrefab extends Phaser.GameObjects.Container {
         this.label = scene.add.text(0, 0, this.currentMessage)
 
         this.label.setFontSize(35)
+        this.label.setOrigin(0.5, 0.5) // Center origin for proper alignment
         scene.children.remove(this.label)
 
         this.background = scene.add.image(0, 0, 'generalBackground')
@@ -90,6 +91,7 @@ class QueueingPrefab extends Phaser.GameObjects.Container {
                 this.dots = (this.dots + 1) % 4
                 const dotsStr = '.'.repeat(this.dots)
                 this.label.setText(this.currentMessage + dotsStr)
+                Phaser.Display.Align.In.Center(this.label, this.zone, 0, -this.zone.height / 10)
             },
             loop: true
         })

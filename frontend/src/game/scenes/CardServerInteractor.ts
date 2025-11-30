@@ -74,7 +74,7 @@ export class CardServerInteractor {
             } catch (e) {
                 console.error("Error polling for events:", e)
             }
-        }, 1250) // Poll every 1.25 seconds
+        }, 2500) // Poll every 2.5 seconds to reduce rate limiting
     }
 
     private async pollForBattleCreated() {
