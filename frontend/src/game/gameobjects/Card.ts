@@ -80,6 +80,40 @@ export default class Card {
 
         nameLabel.x = -nameLabel.displayWidth / 2
 
+        // Attack icon and text (sword - using frame 0 temporarily)
+        var attackIcon = this.scene.make.image({
+            key: 'iconSheet',
+            frame: 86,
+            x: 20,
+            y: 90,
+            add: false
+        })
+        attackIcon.setScale(0.8)
+
+        var attackLabel = this.scene.make.text({
+            x: 35,
+            y: 82,
+            text: String(cardInfo.attack ?? 0),
+            style: { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' }
+        }, false)
+
+        // Health icon and text (heart - using frame 1 temporarily)
+        var healthIcon = this.scene.make.image({
+            key: 'iconSheet',
+            frame: 6,
+            x: -35,
+            y: 90,
+            add: false
+        })
+        healthIcon.setScale(0.8)
+
+        var healthLabel = this.scene.make.text({
+            x: -20,
+            y: 82,
+            text: String(cardInfo.health ?? 0),
+            style: { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' }
+        }, false)
+
         this.visualContainer.width = background.width * 1.5
         this.visualContainer.height = background.height * 1.5
 
@@ -88,6 +122,10 @@ export default class Card {
         this.visualContainer.add(namePlate)
         this.visualContainer.add(nameLabel)
         this.visualContainer.add(artFrame)
+        this.visualContainer.add(attackIcon)
+        this.visualContainer.add(attackLabel)
+        this.visualContainer.add(healthIcon)
+        this.visualContainer.add(healthLabel)
         //this.container.add(cardFrame)
 
         this.visualContainer.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, (_1: any, _2: number, _3: number, _4: PointerEvent) => {

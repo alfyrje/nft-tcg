@@ -21,6 +21,7 @@ function loadCardAssets(scene: Phaser.Scene) {
     scene.load.image('cardArtFrame', 'cardVisual/CardArtFrame_Gold.png')
     scene.load.image('cardSelectedBackground', 'cardVisual/CardBackground_Highlight.png')
     scene.load.spritesheet('buttonBSheet', 'ui/buttonSheet.png', { frameWidth: 96, frameHeight: 22 })
+    scene.load.spritesheet('iconSheet', 'cardVisual/SheetIcon.png', { frameWidth: 32, frameHeight: 32 })
     scene.load.image('generalBackground', 'background/bg1.png')
 
     scene.load.image('bg1', 'background/bg1.png')
