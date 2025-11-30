@@ -231,7 +231,7 @@ export class CardServerInteractor {
             console.log("Registering for battle with deck:", deckBigInt)
             const tx = await withRetry(
                 () => gameContract.registerForBattle(deckBigInt),
-                3,
+                8,
                 500,
                 "registerForBattle"
             )
@@ -300,7 +300,7 @@ export class CardServerInteractor {
                 () => gameContract.resolveBattle(battleIdBigInt, {
                     gasLimit: 3000000n // 3M gas should be enough for most battles
                 }),
-                3,
+                8,
                 500,
                 "resolveBattle"
             )
