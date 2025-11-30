@@ -11,6 +11,14 @@ function initLoadCardAssets() {
     sheet?.insertRule(styles, 0);
 }
 
+// Random card cover fallback images
+const RANDOM_COVERS = [
+    'randomCover1',
+    'randomCover2',
+    'randomCover3',
+    'randomCover4'
+]
+
 // Card visual variants for randomization
 const CARD_BACKGROUNDS = [
     'CardBackground_Blue',
@@ -68,6 +76,12 @@ function loadCardAssets(scene: Phaser.Scene) {
     })
     
     scene.load.image('cardSelectedBackground', 'cardVisual/CardBackground_Highlight.png')
+    
+    // Load random cover fallback images
+    scene.load.image('randomCover1', 'randomCardCover/randomCover1.png')
+    scene.load.image('randomCover2', 'randomCardCover/randomCover2.png')
+    scene.load.image('randomCover3', 'randomCardCover/randomCover3.png')
+    scene.load.image('randomCover4', 'randomCardCover/randomCover4.jpg')
     scene.load.spritesheet('buttonBSheet', 'ui/buttonSheet.png', { frameWidth: 96, frameHeight: 22 })
     scene.load.spritesheet('iconSheet', 'cardVisual/SheetIcon.png', { frameWidth: 32, frameHeight: 32 })
     scene.load.image('generalBackground', 'background/bg1.png')
@@ -84,4 +98,4 @@ function loadCardAssets(scene: Phaser.Scene) {
     })
 }
 
-export { loadCardAssets, initLoadCardAssets, CARD_BACKGROUNDS, CARD_FRAMES, CARD_ART_FRAMES, NAME_PLATES }
+export { loadCardAssets, initLoadCardAssets, CARD_BACKGROUNDS, CARD_FRAMES, CARD_ART_FRAMES, NAME_PLATES, RANDOM_COVERS }

@@ -9,6 +9,7 @@ export class CardServerInteractor {
     private playerAddress: string
     private gameLogicAddress: string
     private gameLogicAbi: ethers.InterfaceAbi
+    private serverUrl: string
 
     private provider: ethers.BrowserProvider
     private implCardContract?: ethers.Contract
@@ -20,12 +21,13 @@ export class CardServerInteractor {
         return this.playerAddress
     }
     
-    constructor(playerAddress: string, contractAddress: string, abi: ethers.InterfaceAbi, gameLogicAddress: string, gameLogicAbi: ethers.InterfaceAbi) {
+    constructor(playerAddress: string, contractAddress: string, abi: ethers.InterfaceAbi, gameLogicAddress: string, gameLogicAbi: ethers.InterfaceAbi, serverUrl: string = 'http://localhost:4000') {
         this.contractAddress = contractAddress
         this.playerAddress = playerAddress
         this.abi = abi
         this.gameLogicAddress = gameLogicAddress
         this.gameLogicAbi = gameLogicAbi
+        this.serverUrl = serverUrl
 
         this.provider = new ethers.BrowserProvider(window.ethereum!);
         this.provider.pollingInterval = 100
@@ -68,12 +70,30 @@ export class CardServerInteractor {
         let cardContract = await this.getCardContract()
         const c = await cardContract.getCard(cardId);
 
-        // minimal info for selection
+        // Try to fetch metadata for the image and name
+        let imageUrl: string | undefined = undefined
+        let cardName: string = `Card #${cardId}`
+        try {
+            if (c.uri) {
+                const metaRes = await fetch(`${this.serverUrl}/metadata?uri=${encodeURIComponent(c.uri)}`)
+                if (metaRes.ok) {
+                    const meta = await metaRes.json()
+                    imageUrl = meta.image
+                    if (meta.name) {
+                        cardName = meta.name
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn(`Failed to fetch metadata for card ${cardId}:`, e)
+        }
+
         return new CardInfo({
             id: cardId,
-            name: `Card #${cardId}`,
+            name: cardName,
             attack: Number(c.attack),
-            health: Number(c.health)
+            health: Number(c.health),
+            imageUrl: imageUrl
         })
     }
 
@@ -103,7 +123,7 @@ export class CardServerInteractor {
             const events = await gameContract.queryFilter(filter, startBlock);
             
             for(const e of events) {
-                const [id, p1, p2] = e.data;
+                const [id, p1, p2] = e.args;
                 if(p1.toLowerCase() === this.playerAddress.toLowerCase() || p2.toLowerCase() === this.playerAddress.toLowerCase()) {
                     // Check if resolved
                     const resFilter = gameContract.filters.BattleResolved(id);

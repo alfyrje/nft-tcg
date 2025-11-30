@@ -1,5 +1,5 @@
 import CardInfo from "../models/CardInfo";
-import { CARD_BACKGROUNDS, CARD_FRAMES, CARD_ART_FRAMES, NAME_PLATES } from "../scenes/Shared";
+import { CARD_BACKGROUNDS, CARD_FRAMES, CARD_ART_FRAMES, NAME_PLATES, RANDOM_COVERS } from "../scenes/Shared";
 
 // Seeded random using mulberry32 (better distribution for small seeds)
 function seededRandom(seed: number): () => number {
@@ -22,6 +22,7 @@ export default class Card {
     private eventEmitter: Phaser.Events.EventEmitter;
     private highlightBackground: Phaser.GameObjects.Image
     private healthLabel: Phaser.GameObjects.Text
+    private cardArt: Phaser.GameObjects.Image
     private cardInfo: CardInfo
     private currentHealth: number
 
@@ -75,6 +76,28 @@ export default class Card {
         })
 
         artFrame.setScale(1.5)
+
+        // Create card art - use random fallback initially, load actual image if available
+        const randomCoverKey = RANDOM_COVERS[Math.floor(random() * RANDOM_COVERS.length)]
+        this.cardArt = this.scene.make.image({
+            key: randomCoverKey,
+            x: 0,
+            y: -30,
+            add: false
+        })
+        
+        // Scale and mask the art to fit within the art frame
+        const artMaxWidth = 85 * 1.5
+        const artMaxHeight = 85 * 1.5
+        const artScaleX = artMaxWidth / this.cardArt.width
+        const artScaleY = artMaxHeight / this.cardArt.height
+        const artScale = Math.min(artScaleX, artScaleY)
+        this.cardArt.setScale(artScale)
+
+        // If card has an imageUrl, try to load it
+        if (cardInfo.imageUrl) {
+            this.loadCardImage(cardInfo.imageUrl, cardId)
+        }
 
         var namePlate = this.scene.make.image({
             key: namePlateKey,
@@ -150,6 +173,7 @@ export default class Card {
         this.visualContainer.add(background)
         this.visualContainer.add(namePlate)
         this.visualContainer.add(nameLabel)
+        this.visualContainer.add(this.cardArt)
         this.visualContainer.add(artFrame)
         this.visualContainer.add(attackIcon)
         this.visualContainer.add(attackLabel)
@@ -244,5 +268,48 @@ export default class Card {
     setHealth(newHealth: number) {
         this.currentHealth = newHealth
         this.healthLabel.setText(String(newHealth))
+    }
+
+    private loadCardImage(imageUrl: string, cardId: number) {
+        // Convert IPFS URL to gateway URL if needed
+        let url = imageUrl
+        if (url.startsWith('ipfs://')) {
+            url = url.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')
+        }
+
+        const imageKey = `cardArt_${cardId}`
+        
+        // Check if already loaded
+        if (this.scene.textures.exists(imageKey)) {
+            this.applyCardArt(imageKey)
+            return
+        }
+
+        // Load the image dynamically
+        this.scene.load.image(imageKey, url)
+        
+        this.scene.load.once(`filecomplete-image-${imageKey}`, () => {
+            this.applyCardArt(imageKey)
+        })
+
+        this.scene.load.once('loaderror', (file: Phaser.Loader.File) => {
+            if (file.key === imageKey) {
+                console.warn(`Failed to load card image for card ${cardId}, using fallback`)
+                // Keep the random fallback image
+            }
+        })
+
+        this.scene.load.start()
+    }
+
+    private applyCardArt(imageKey: string) {
+        this.cardArt.setTexture(imageKey)
+        
+        // Rescale to fit within art frame
+        const artMaxWidth = 85 * 1.5
+        const artMaxHeight = 60 * 1.5
+        const artScaleX = artMaxWidth / this.cardArt.width
+        const artScaleY = artMaxHeight / this.cardArt.height
+        this.cardArt.setScale(artScaleX, artScaleY)
     }
 }

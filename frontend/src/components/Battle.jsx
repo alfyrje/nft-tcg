@@ -25,7 +25,7 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
 
         if (currentGame.current === null)
         {
-            var serverInteractor = new CardServerInteractor(address, contractAddress, CardNFTAbi.abi, gameLogicAddress, GameLogicAbi.abi)
+            var serverInteractor = new CardServerInteractor(address, contractAddress, CardNFTAbi.abi, gameLogicAddress, GameLogicAbi.abi, "http://localhost:4000")
             currentGame.current = StartGame("game-container", serverInteractor)
         }
     
