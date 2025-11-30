@@ -7,7 +7,7 @@ class Button extends Phaser.GameObjects.Container {
 
     static PRESSED_EVENT = "pressed"
 
-    constructor(scene: Phaser.Scene, x: number, y: number, backgroundKey: string, spriteNumber: integer, spriteScale: number, textConfig: Phaser.Types.GameObjects.Text.TextConfig, addToScene: boolean = true) {
+    constructor(scene: Phaser.Scene, x: number, y: number, backgroundKey: string, spriteNumber: integer, spriteScale: number, textConfig: Phaser.Types.GameObjects.Text.TextConfig, addToScene: boolean = true, spriteScaleY?: number) {
         super(scene, x, y)
 
         this.disabled = false
@@ -32,8 +32,8 @@ class Button extends Phaser.GameObjects.Container {
         this.add(this.backgroundObject)
         this.add(this.labelObject)
 
-        this.backgroundObject.setScale(spriteScale)
-        this.hoverBackground.setScale(spriteScale * 1.1)
+        this.backgroundObject.setScale(spriteScale, spriteScaleY || spriteScale)
+        this.hoverBackground.setScale(spriteScale * 1.1, (spriteScaleY || spriteScale) * 1.1)
 
         this.width = this.backgroundObject.displayWidth
         this.height = this.backgroundObject.displayHeight

@@ -9,6 +9,7 @@ export class CardServerInteractor {
     private playerAddress: string
     private gameLogicAddress: string
     private gameLogicAbi: ethers.InterfaceAbi
+    private serverUrl: string
 
     private provider: ethers.BrowserProvider
     private implCardContract?: ethers.Contract
@@ -20,12 +21,13 @@ export class CardServerInteractor {
         return this.playerAddress
     }
     
-    constructor(playerAddress: string, contractAddress: string, abi: ethers.InterfaceAbi, gameLogicAddress: string, gameLogicAbi: ethers.InterfaceAbi) {
+    constructor(playerAddress: string, contractAddress: string, abi: ethers.InterfaceAbi, gameLogicAddress: string, gameLogicAbi: ethers.InterfaceAbi, serverUrl: string = 'http://localhost:4000') {
         this.contractAddress = contractAddress
         this.playerAddress = playerAddress
         this.abi = abi
         this.gameLogicAddress = gameLogicAddress
         this.gameLogicAbi = gameLogicAbi
+        this.serverUrl = serverUrl
 
         this.provider = new ethers.BrowserProvider(window.ethereum!);
         this.provider.pollingInterval = 100
@@ -68,12 +70,30 @@ export class CardServerInteractor {
         let cardContract = await this.getCardContract()
         const c = await cardContract.getCard(cardId);
 
-        // minimal info for selection
+        // Try to fetch metadata for the image and name
+        let imageUrl: string | undefined = undefined
+        let cardName: string = `Card #${cardId}`
+        try {
+            if (c.uri) {
+                const metaRes = await fetch(`${this.serverUrl}/metadata?uri=${encodeURIComponent(c.uri)}`)
+                if (metaRes.ok) {
+                    const meta = await metaRes.json()
+                    imageUrl = meta.image
+                    if (meta.name) {
+                        cardName = meta.name
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn(`Failed to fetch metadata for card ${cardId}:`, e)
+        }
+
         return new CardInfo({
             id: cardId,
-            name: `Card #${cardId}`,
+            name: cardName,
             attack: Number(c.attack),
-            health: Number(c.health)
+            health: Number(c.health),
+            imageUrl: imageUrl
         })
     }
 
@@ -81,14 +101,9 @@ export class CardServerInteractor {
         let cardContract = await this.getCardContract()
         const ids = await cardContract.getTokensOfOwner(this.playerAddress);
 
-        const loaded: CardInfo[] = [];
-        for (let id of ids) {
-            // minimal info for selection
-            loaded.push(
-                await this.getCardInfo(id.toString())
-            )
-                //{ id: id.toString(), name: `Card #${id}`, attack: c.attack, health: c.health });
-        }
+        // Load all cards in parallel
+        const cardPromises = ids.map((id: any) => this.getCardInfo(id.toString()))
+        const loaded = await Promise.all(cardPromises)
 
         return new CardCollectionInfo(loaded);
     }
@@ -103,7 +118,7 @@ export class CardServerInteractor {
             const events = await gameContract.queryFilter(filter, startBlock);
             
             for(const e of events) {
-                const [id, p1, p2] = e.data;
+                const [id, p1, p2] = e.args;
                 if(p1.toLowerCase() === this.playerAddress.toLowerCase() || p2.toLowerCase() === this.playerAddress.toLowerCase()) {
                     // Check if resolved
                     const resFilter = gameContract.filters.BattleResolved(id);
@@ -166,25 +181,27 @@ export class CardServerInteractor {
         const deckAAddress = await gameContract.getBattleSideAddress(battleId, 0)
         const deckBAddress = await gameContract.getBattleSideAddress(battleId, 1)
 
-        let deckACardIds: string[] = []
-        let deckBCardIds: string[] = []
-        
-        let deckACards: CardInfo[] = []
-        let deckBCards: CardInfo[] = []
-
+        // Fetch all card IDs in parallel
+        const cardIdPromises = []
         for (let i = 0; i < 3; i++) {
-            let cardAId = await gameContract.getCardIdOfSide(battleId, 0, i)
-            deckACardIds.push(cardAId)
-
-            let cardBId = await gameContract.getCardIdOfSide(battleId, 1, i)
-            deckBCardIds.push(cardBId)
-        
-            let cardA = await this.getCardInfo(cardAId);
-            let cardB = await this.getCardInfo(cardBId);
-
-            deckACards.push(cardA)
-            deckBCards.push(cardB)
+            cardIdPromises.push(gameContract.getCardIdOfSide(battleId, 0, i))
+            cardIdPromises.push(gameContract.getCardIdOfSide(battleId, 1, i))
         }
+        const cardIds = await Promise.all(cardIdPromises)
+        
+        // cardIds is [A0, B0, A1, B1, A2, B2]
+        const deckACardIds = [cardIds[0], cardIds[2], cardIds[4]]
+        const deckBCardIds = [cardIds[1], cardIds[3], cardIds[5]]
+
+        // Fetch all card info in parallel
+        const allCardInfoPromises = [
+            ...deckACardIds.map(id => this.getCardInfo(id)),
+            ...deckBCardIds.map(id => this.getCardInfo(id))
+        ]
+        const allCardInfo = await Promise.all(allCardInfoPromises)
+        
+        const deckACards = allCardInfo.slice(0, 3)
+        const deckBCards = allCardInfo.slice(3, 6)
 
         let playbackInfo = new BattlePlaybackInfo({
             deckA: {
