@@ -176,6 +176,16 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
     selectedCardsIds(): string[] {
         return Array.from(this.selectedCardIds)
     }
+
+    setCardsInteractable(enabled: boolean) {
+        for (const card of this.cardCollection.cards()) {
+            card.setInteractable(enabled)
+        }
+        // Also disable navigation and queue buttons
+        this.prevButton.setDisabled(!enabled)
+        this.nextButton.setDisabled(!enabled)
+        this.queueButton.setDisabled(!enabled)
+    }
 }
 
 export default CardPickPrefab;

@@ -270,6 +270,14 @@ export default class Card {
         this.healthLabel.setText(String(newHealth))
     }
 
+    setInteractable(enabled: boolean) {
+        if (enabled) {
+            this.visualContainer.setInteractive()
+        } else {
+            this.visualContainer.disableInteractive()
+        }
+    }
+
     private loadCardImage(imageUrl: string, cardId: number) {
         // Convert IPFS URL to gateway URL if needed
         let url = imageUrl

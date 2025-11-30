@@ -168,6 +168,9 @@ export class CardMain extends Phaser.Scene {
     }
 
     startQueueing() {
+        // Disable card interaction while queueing
+        this.cardPicker?.setCardsInteractable(false)
+        
         this.queueing = new QueueingPrefab(this, this.zone, this.cardServerInteractor, this.cardPicker!.selectedCardsIds(), true)
         this.queueing.onBattleResolved = (playbackData: BattlePlaybackInfo) => {
             this.playbackInfo = playbackData
