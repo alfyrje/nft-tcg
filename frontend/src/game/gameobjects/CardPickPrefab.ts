@@ -20,6 +20,7 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
     private columnsPerRow: number = 0
     private zone: Phaser.GameObjects.Zone
     private scene: Phaser.Scene
+    private selectedCardIds: Set<string> = new Set()
 
     onQueuePressed: Function
 
@@ -65,7 +66,7 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
 
         scene.children.remove(title)
 
-        this.cardPickController = new CardPickController(scene, this.cardCollection, new CardPickConfig())
+        this.cardPickController = new CardPickController(scene, this.cardCollection, new CardPickConfig(), this.selectedCardIds, this.onSelectionChange.bind(this))
         this.queueButton = new Button(scene, 0, 0, 'buttonBSheet', 2, 2, {
             text: "Queue",
         }, false)
@@ -118,6 +119,14 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
         }
     }
 
+    private onSelectionChange(cardId: string, selected: boolean) {
+        if (selected) {
+            this.selectedCardIds.add(cardId)
+        } else {
+            this.selectedCardIds.delete(cardId)
+        }
+    }
+
     private refreshCollection() {
         // Remove old collection
         this.cardCollection.container().destroy(true)
@@ -135,8 +144,8 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
 
         Phaser.Display.Align.In.Center(this.cardCollection.container(), this.zone, 0, 0)
         
-        // Update controller with new collection
-        this.cardPickController = new CardPickController(this.scene, this.cardCollection, new CardPickConfig())
+        // Update controller with new collection, preserving selected cards
+        this.cardPickController = new CardPickController(this.scene, this.cardCollection, new CardPickConfig(), this.selectedCardIds, this.onSelectionChange.bind(this))
         
         this.add(this.cardCollection.container())
     }
@@ -157,7 +166,7 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
     }
 
     update() {
-        this.queueButton.setDisabled(this.cardPickController.selectedCards().length < 3)
+        this.queueButton.setDisabled(this.selectedCardIds.size < 3)
     }
 
     private onQueueButtonPressed() {
@@ -165,7 +174,7 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
     }
 
     selectedCardsIds(): string[] {
-        return this.cardPickController.selectedCards().map(x => x.getCardInfo().id!)
+        return Array.from(this.selectedCardIds)
     }
 }
 
