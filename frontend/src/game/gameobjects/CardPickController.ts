@@ -15,17 +15,28 @@ class CardPickController {
     private scene: Phaser.Scene;
     private config: CardPickConfig;
     private selectedList: Card[];
+    private selectedCardIds: Set<string>;
+    private onSelectionChange?: (cardId: string, selected: boolean) => void;
 
     static MAX_ALLOWED_CARDS = 3
 
-    constructor(scene: Phaser.Scene, newCollection: CardCollection, newConfig: CardPickConfig) {
+    constructor(scene: Phaser.Scene, newCollection: CardCollection, newConfig: CardPickConfig, selectedCardIds?: Set<string>, onSelectionChange?: (cardId: string, selected: boolean) => void) {
         this.collection = newCollection;
         this.tweens = new Map<Card, CardTweenInfo>();
         this.scene = scene;
         this.config = newConfig;
         this.selectedList = []
+        this.selectedCardIds = selectedCardIds || new Set()
+        this.onSelectionChange = onSelectionChange
 
         for (let card of newCollection.cards()) {
+            // Restore selection state from selectedCardIds
+            const cardId = card.getCardInfo().id
+            if (cardId && this.selectedCardIds.has(cardId)) {
+                this.selectedList.push(card)
+                card.setHighlighted(true)
+            }
+            
             card.subscribe(Card.HOVER_ENTER_EVENT, this.onCardHoverEnter.bind(this))
             card.subscribe(Card.HOVER_EXIT_EVENT, this.onCardHoverExit.bind(this))
             card.subscribe(Card.SELECT_EVENT, this.onCardSelected.bind(this))
@@ -101,15 +112,21 @@ class CardPickController {
     }
 
     private onCardSelected(card: Card) {
+        const cardId = card.getCardInfo().id
         var cardIndex = this.selectedList.indexOf(card)
+        
         if (cardIndex >= 0) {
             this.selectedList.splice(cardIndex, 1)
             card.setHighlighted(false)
+            
+            if (cardId && this.onSelectionChange) {
+                this.onSelectionChange(cardId, false)
+            }
 
             this.tryRetreatCard(card)
         } else {
-            // Nuh uh
-            if (this.selectedList.length >= CardPickController.MAX_ALLOWED_CARDS) {
+            // Check against total selected cards (including other pages)
+            if (this.selectedCardIds.size >= CardPickController.MAX_ALLOWED_CARDS) {
                 var shakePosition = new ShakePosition(card.container())
                 shakePosition.shake(200, 10)
 
@@ -118,6 +135,10 @@ class CardPickController {
 
             this.selectedList.push(card)
             card.setHighlighted(true)
+            
+            if (cardId && this.onSelectionChange) {
+                this.onSelectionChange(cardId, true)
+            }
         }
     }
 

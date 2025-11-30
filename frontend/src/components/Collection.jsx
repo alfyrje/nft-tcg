@@ -2,6 +2,52 @@ import React, { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
 import CardNFTAbi from '../CardNFT.json';
 
+// Random fallback covers
+const RANDOM_COVERS = [
+    '/assets/randomCardCover/randomCover1.png',
+    '/assets/randomCardCover/randomCover2.png',
+    '/assets/randomCardCover/randomCover3.png',
+    '/assets/randomCardCover/randomCover4.jpg',
+];
+
+// Seeded random for consistent fallback per card ID
+function seededRandom(seed) {
+    seed = seed * 2654435761 ^ seed >>> 16;
+    seed = seed * 2654435761 ^ seed >>> 16;
+    seed |= 0;
+    seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+}
+
+function getRandomCover(cardId) {
+    const index = Math.floor(seededRandom(Number(cardId)) * RANDOM_COVERS.length);
+    return RANDOM_COVERS[index];
+}
+
+// Card image component with fallback
+function CardImage({ cardId, src, alt }) {
+    const [imgSrc, setImgSrc] = useState(src || getRandomCover(cardId));
+    const [hasError, setHasError] = useState(false);
+
+    const handleError = () => {
+        if (!hasError) {
+            setHasError(true);
+            setImgSrc(getRandomCover(cardId));
+        }
+    };
+
+    return (
+        <img 
+            src={imgSrc} 
+            alt={alt} 
+            style={{width:'100%', borderRadius: '8px'}} 
+            onError={handleError}
+        />
+    );
+}
+
 export default function Collection({address, contractAddress}){
     const [cards, setCards] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -20,9 +66,9 @@ export default function Collection({address, contractAddress}){
             const contract = new ethers.Contract(contractAddress, CardNFTAbi.abi, signer);
             
             const tokenIds = await contract.getTokensOfOwner(address);
-            const loadedCards = [];
             
-            for(let id of tokenIds) {
+            // Load all cards in parallel for faster loading
+            const cardPromises = tokenIds.map(async (id) => {
                 const cardData = await contract.getCard(id);
                 let meta = {};
                 try {
@@ -35,9 +81,7 @@ export default function Collection({address, contractAddress}){
                     meta = { name: `Card #${id}`, image: '' };
                 }
 
-                console.log(meta)
-
-                loadedCards.push({
+                return {
                     id: id.toString(),
                     attack: cardData.attack,
                     health: cardData.health,
@@ -48,8 +92,10 @@ export default function Collection({address, contractAddress}){
                     image: meta.image ? meta.image.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/') : '',
                     rarityStr: ['Common','Rare','Epic','Legendary','Mythic'][Number(cardData.rarity)],
                     attrStr: ['Fire','Water','Earth','Steel','Nature'][Number(cardData.attr)]
-                });
-            }
+                };
+            });
+            
+            const loadedCards = await Promise.all(cardPromises);
             setCards(loadedCards);
         } catch(e) {
             console.error(e);
@@ -62,10 +108,10 @@ export default function Collection({address, contractAddress}){
         <h2>Your Collection</h2>
         {loading && <p>Loading collection...</p>}
         {!loading && cards.length === 0 && <p>No cards found.</p>}
-        <div style={{display:'flex', gap:'10px', flexWrap:'wrap'}}>
+        <div style={{display:'flex', gap:'10px', flexWrap:'wrap', justifyContent:'center'}}>
             {cards.map(c => (
                 <div key={c.id} style={{border:'1px solid #ccc', padding:'10px', borderRadius:'8px', width:'200px'}}>
-                    {c.image && <img src={c.image} alt={c.name} style={{width:'100%'}} />}
+                    <CardImage cardId={c.id} src={c.image} alt={c.name} />
                     <h3>{c.name}</h3>
                     <p>Rarity: {c.rarityStr}</p>
                     <p>Element: {c.attrStr}</p>

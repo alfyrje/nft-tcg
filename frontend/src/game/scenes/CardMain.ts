@@ -14,7 +14,8 @@ import CardPickPrefab from "../gameobjects/CardPickPrefab";
 import CardAttackPrefab from "../gameobjects/CardAttackPrefab";
 import BattleResultPrefab from "../gameobjects/BattleResultPrefab";
 import { CardServerInteractor } from "./CardServerInteractor";
-import QueueingPrefab from "../gameobjects/QueueingPrefab";
+import QueueingPrefab, { PendingBattleInfo } from "../gameobjects/QueueingPrefab";
+import LoadingPrefab from "../gameobjects/LoadingPrefab";
 
 
 // "Every great game begins with a single scene. Let's make this one unforgettable!"
@@ -28,6 +29,7 @@ export class CardMain extends Phaser.Scene {
     private cardCollectionInfoCache?: CardCollectionInfo
     private cardServerInteractor: CardServerInteractor
     private playbackInfo?: BattlePlaybackInfo
+    private loading?: LoadingPrefab
 
     constructor() {
         super('CardMain');
@@ -161,13 +163,25 @@ export class CardMain extends Phaser.Scene {
     }
 
     async loadCardPicker() {
-        this.cardPicker = new CardPickPrefab(this, this.zone, await this.getCardCollectionInfo())
+        // Show loading screen
+        this.loading = new LoadingPrefab(this, this.zone, "Loading Cards")
+        
+        const cardInfo = await this.getCardCollectionInfo()
+        
+        // Hide loading screen
+        this.loading.destroy()
+        this.loading = undefined
+        
+        this.cardPicker = new CardPickPrefab(this, this.zone, cardInfo)
         this.cardPicker.onQueuePressed = () => {
             this.startQueueing()
         }
     }
 
     startQueueing() {
+        // Disable card interaction while queueing
+        this.cardPicker?.setCardsInteractable(false)
+        
         this.queueing = new QueueingPrefab(this, this.zone, this.cardServerInteractor, this.cardPicker!.selectedCardsIds(), true)
         this.queueing.onBattleResolved = (playbackData: BattlePlaybackInfo) => {
             this.playbackInfo = playbackData
@@ -221,9 +235,23 @@ export class CardMain extends Phaser.Scene {
             this.battleResult.destroy()
             this.cardBattle.destroy()
 
-            await this.loadCardPicker()
-
+            // Show loading screen before fade in
+            this.loading = new LoadingPrefab(this, this.zone, "Loading Cards")
+            
+            // Fade in to show loading screen
             this.cameras.main.fadeIn(200, 0, 0, 0)
+            
+            // Load cards while loading screen is visible
+            const cardInfo = await this.getCardCollectionInfo()
+            
+            // Hide loading screen and show card picker
+            this.loading.destroy()
+            this.loading = undefined
+            
+            this.cardPicker = new CardPickPrefab(this, this.zone, cardInfo)
+            this.cardPicker.onQueuePressed = () => {
+                this.startQueueing()
+            }
         }
 
         this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handleFadeOutFunc)
@@ -231,7 +259,49 @@ export class CardMain extends Phaser.Scene {
 
     async create() {
         this.createBase()
-        await this.loadCardPicker()
+        
+        // Show loading while checking pending state
+        this.loading = new LoadingPrefab(this, this.zone, "Loading")
+        
+        // Check if player has pending queue/battle state
+        const pendingState = await this.cardServerInteractor.checkPendingState()
+        
+        // Hide initial loading
+        this.loading.destroy()
+        this.loading = undefined
+        
+        if (pendingState.hasPendingBattle && pendingState.battleId) {
+            // Player has an unresolved battle - show queueing screen and resume
+            console.log("Found pending battle, resuming...")
+            await this.loadCardPicker()
+            this.cardPicker?.setCardsInteractable(false)
+            
+            const pendingBattle: PendingBattleInfo = {
+                battleId: pendingState.battleId,
+                p1: pendingState.p1!,
+                p2: pendingState.p2!
+            }
+            
+            this.queueing = new QueueingPrefab(this, this.zone, this.cardServerInteractor, null, true, pendingBattle)
+            this.queueing.onBattleResolved = (playbackData: BattlePlaybackInfo) => {
+                this.playbackInfo = playbackData
+                this.onBattleReportedFromServer()
+            }
+        } else if (pendingState.isWaiting) {
+            // Player is waiting in queue - show queueing screen
+            console.log("Player is waiting in queue, showing queue screen...")
+            await this.loadCardPicker()
+            this.cardPicker?.setCardsInteractable(false)
+            
+            this.queueing = new QueueingPrefab(this, this.zone, this.cardServerInteractor, null, true)
+            this.queueing.onBattleResolved = (playbackData: BattlePlaybackInfo) => {
+                this.playbackInfo = playbackData
+                this.onBattleReportedFromServer()
+            }
+        } else {
+            // Normal state - show card picker
+            await this.loadCardPicker()
+        }
     }
 
     update(time: number, delta: number): void {

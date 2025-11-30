@@ -10,6 +10,7 @@ class CardInfo
     rarity?: CardRarity;
     name?: string;
     id?: string;
+    imageUrl?: string;
 
     constructor(init?: Partial<CardInfo>) {
         Object.assign(this, init)
