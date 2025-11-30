@@ -27,21 +27,52 @@ class CardCollection {
     }
 
     private realignContainer() {
-        if (this.cardList.length > 0) {
-            let singleCardWidth = this.cardList[0].width()
-            let containerWidth = this.cardList.length * singleCardWidth + this.config.spacing * (this.cardList.length - 1)
-            let containerHeight = this.cardList[0].height()
+        if (this.cardList.length === 0) return;
 
-            this.realContainer.width = containerWidth
-            this.realContainer.height = containerHeight
+        const singleCardWidth = this.cardList[0].width();
+        const singleCardHeight = this.cardList[0].height();
+        const spacing = this.config.spacing || 10;
+
+        // If columns is specified, create a grid layout
+        if (this.config.columns && this.config.columns > 0) {
+            const columns = this.config.columns;
+            const rows = Math.ceil(this.cardList.length / columns);
+
+            // Calculate grid dimensions
+            const gridWidth = columns * singleCardWidth + (columns - 1) * spacing;
+            const gridHeight = rows * singleCardHeight + (rows - 1) * spacing;
+
+            this.realContainer.width = gridWidth;
+            this.realContainer.height = gridHeight;
+            
+            // Center the grid
+            this.realContainer.x = -gridWidth / 2;
+            this.realContainer.y = -gridHeight / 2;
+
+            // Position each card in the grid
+            for (let i = 0; i < this.cardList.length; i++) {
+                const col = i % columns;
+                const row = Math.floor(i / columns);
+                
+                const x = col * (singleCardWidth + spacing) + singleCardWidth / 2;
+                const y = row * (singleCardHeight + spacing) + singleCardHeight / 2;
+                
+                this.cardList[i].setPosition(new Phaser.Math.Vector2(x, y));
+            }
+        } else {
+            // Original horizontal layout
+            const containerWidth = this.cardList.length * singleCardWidth + spacing * (this.cardList.length - 1);
+            const containerHeight = singleCardHeight;
+
+            this.realContainer.width = containerWidth;
+            this.realContainer.height = containerHeight;
         
-            this.realContainer.x = -containerWidth / 2
-            this.realContainer.y = -containerHeight / 2
+            this.realContainer.x = -containerWidth / 2;
+            this.realContainer.y = -containerHeight / 2;
 
             for (let i = 0; i < this.cardList.length; i++) {
-                let cardRef = this.cardList[i]
-
-                cardRef.setPosition(new Phaser.Math.Vector2(singleCardWidth * (i + 0.5) + this.config.spacing * i, 0))
+                const x = singleCardWidth * (i + 0.5) + spacing * i;
+                this.cardList[i].setPosition(new Phaser.Math.Vector2(x, 0));
             }
         }
     }
