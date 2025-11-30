@@ -35,6 +35,8 @@ export default function Collection({address, contractAddress}){
                     meta = { name: `Card #${id}`, image: '' };
                 }
 
+                console.log(meta)
+
                 loadedCards.push({
                     id: id.toString(),
                     attack: cardData.attack,

@@ -7,9 +7,16 @@
   },
   "dependencies": {
     "ethers": "^6.6.0",
+    "phaser": "^3.90.0",
+    "phaser3-rex-plugins": "^1.80.17",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.9.6",
-    "vite": "^7.2.2"
+    "vite": "^7.2.2",
+    "webfontloader": "^1.6.28"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3"
   }
 }
