@@ -3,6 +3,31 @@ import CardCollectionInfo from "../models/CardCollectionInfo";
 import CardInfo from "../models/CardInfo";
 import { BattlePlaybackInfo } from "../models/BattlePlaybackInfo";
 
+// Retry helper for flaky RPC calls
+async function withRetry<T>(
+    fn: () => Promise<T>, 
+    maxRetries: number = 3, 
+    delayMs: number = 500,
+    label: string = "operation"
+): Promise<T> {
+    let lastError: any
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await fn()
+        } catch (e: any) {
+            lastError = e
+            const isRpcError = e?.code === -32603 || e?.message?.includes("Internal JSON-RPC")
+            if (isRpcError && i < maxRetries - 1) {
+                console.warn(`${label} failed (attempt ${i + 1}/${maxRetries}), retrying in ${delayMs}ms...`, e.message)
+                await new Promise(r => setTimeout(r, delayMs))
+            } else {
+                throw e
+            }
+        }
+    }
+    throw lastError
+}
+
 export class CardServerInteractor {
     private contractAddress: string;
     private abi: ethers.InterfaceAbi
@@ -12,8 +37,8 @@ export class CardServerInteractor {
     private serverUrl: string
 
     private provider: ethers.BrowserProvider
-    private implCardContract?: ethers.Contract
-    private implGameContract?: ethers.Contract
+    private pollingInterval: ReturnType<typeof setInterval> | null = null
+    private lastCheckedBlock: number = 0
 
     onBattleCreated?: Function
 
@@ -31,30 +56,66 @@ export class CardServerInteractor {
 
         this.provider = new ethers.BrowserProvider(window.ethereum!);
         this.provider.pollingInterval = 100
+
+        console.log("GameLogic address:", gameLogicAddress)
+
+        // Start polling for events instead of relying on WebSocket subscriptions
+        this.startEventPolling()
+    }
+
+    // Poll for new BattleCreated events every few seconds
+    private async startEventPolling() {
+        // Get initial block number
+        this.lastCheckedBlock = await this.provider.getBlockNumber()
+        
+        this.pollingInterval = setInterval(async () => {
+            try {
+                await this.pollForBattleCreated()
+            } catch (e) {
+                console.error("Error polling for events:", e)
+            }
+        }, 3000) // Poll every 3 seconds
+    }
+
+    private async pollForBattleCreated() {
+        const gameContract = this.getGameContractBrowser()
+        const currentBlock = await this.provider.getBlockNumber()
+        
+        if (currentBlock <= this.lastCheckedBlock) return
+        
+        const filter = gameContract.filters.BattleCreated()
+        const events = await gameContract.queryFilter(filter, this.lastCheckedBlock + 1, currentBlock)
+        
+        for (const event of events) {
+            if ('args' in event && event.args) {
+                const [battleId, p1, p2] = event.args
+                console.log("Polled BattleCreated Event:", battleId.toString(), p1, p2)
+                this.onBattleCreatedHandler(battleId.toString(), p1, p2)
+            }
+        }
+        
+        this.lastCheckedBlock = currentBlock
+    }
+
+    stopPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval)
+            this.pollingInterval = null
+        }
     }
 
     async getCardContract(): Promise<ethers.Contract> {
-        if (this.implCardContract == null) {
-            const signer = await this.provider.getSigner();
-            this.implCardContract = new ethers.Contract(this.contractAddress, this.abi, signer);
-        }
-
-        return this.implCardContract
+        const signer = await this.provider.getSigner();
+        return new ethers.Contract(this.contractAddress, this.abi, signer);
     }
 
-    async getGameContract() {
-        if (this.implGameContract == null) {
-            const signer = await this.provider.getSigner();
-            this.implGameContract = new ethers.Contract(this.gameLogicAddress, this.gameLogicAbi, signer);
+    getGameContractBrowser(): ethers.Contract {
+        return new ethers.Contract(this.gameLogicAddress, this.gameLogicAbi, this.provider);
+    }
 
-            if (this.implGameContract) {
-                this.implGameContract.on("BattleCreated", (battleId, p1, p2) => {
-                    this.onBattleCreatedHandler(battleId, p1, p2)
-                })
-            }
-        }
-
-        return this.implGameContract
+    async getGameContractSigner() {
+        const signer = await this.provider.getSigner();
+        return new ethers.Contract(this.gameLogicAddress, this.gameLogicAbi, signer);
     }
 
     onBattleCreatedHandler(battleId: string, p1: string, p2: string) {
@@ -110,26 +171,36 @@ export class CardServerInteractor {
 
     async checkPastEvents() {
         try {
-            var gameContract = await this.getGameContract()!;
+            var gameContract = this.getGameContractBrowser();
             const currentBlock = await this.provider.getBlockNumber();
-            const startBlock = currentBlock - 1000 > 0 ? currentBlock - 1000 : 0;
+            // Reduce block range to 100 to avoid RPC limits
+            const startBlock = Math.max(0, currentBlock - 100);
             
-            const filter = gameContract.filters.BattleCreated(null, null, null);
-            const events = await gameContract.queryFilter(filter, startBlock);
+            const filter = gameContract.filters.BattleCreated();
+            const events = await gameContract.queryFilter(filter, startBlock, currentBlock);
             
+            console.log(`checkPastEvents: found ${events.length} BattleCreated events from block ${startBlock} to ${currentBlock}`)
+
             for(const e of events) {
+                if (!('args' in e) || !e.args) continue
+                
                 const [id, p1, p2] = e.args;
+                console.log(`Checking event: battleId=${id}, p1=${p1}, p2=${p2}`)
+                
                 if(p1.toLowerCase() === this.playerAddress.toLowerCase() || p2.toLowerCase() === this.playerAddress.toLowerCase()) {
                     // Check if resolved
                     const resFilter = gameContract.filters.BattleResolved(id);
-                    const resEvents = await gameContract.queryFilter(resFilter, startBlock);
+                    const resEvents = await gameContract.queryFilter(resFilter, startBlock, currentBlock);
+                    
                     // If no resolution event found for this battle ID, it's likely still active
                     if(resEvents.length === 0) {
-                        return;
+                        console.log(`Battle ${id} is not yet resolved, triggering onBattleCreated`)
+                        if (this.onBattleCreated) {
+                            this.onBattleCreated(id.toString(), p1, p2)
+                        }
+                        continue;
                     }
-                    if (this.onBattleCreated) {
-                        this.onBattleCreated(id, p1, p2)
-                    }
+                    console.log(`Battle ${id} already resolved, skipping`)
                 }
             }
         } catch(e) {
@@ -141,7 +212,7 @@ export class CardServerInteractor {
         if (selectedCardIds.length !== 3) return [false, 'Select exactly 3 cards'];
         try {
             const cardContract = await this.getCardContract()
-            const gameContract = await this.getGameContract()
+            const gameContract = await this.getGameContractSigner()
 
             // Approve GameLogic to spend these cards (needed for transfer if lost)
             const isApproved = await cardContract.isApprovedForAll(this.playerAddress, this.gameLogicAddress);
@@ -150,10 +221,33 @@ export class CardServerInteractor {
                 await tx.wait();
             }
 
-            console.log(selectedCardIds)
-            const tx = await gameContract.registerForBattle(selectedCardIds);
+            // Convert string IDs to BigInt for uint256[3]
+            const deckBigInt: [bigint, bigint, bigint] = [
+                BigInt(selectedCardIds[0]),
+                BigInt(selectedCardIds[1]),
+                BigInt(selectedCardIds[2])
+            ]
+            
+            console.log("Registering for battle with deck:", deckBigInt)
+            const tx = await withRetry(
+                () => gameContract.registerForBattle(deckBigInt),
+                3,
+                500,
+                "registerForBattle"
+            )
             await tx.wait();
             
+            // Check if we are actually the waiting player before setting status
+            // This prevents overwriting "Battle Started" if we were the 2nd player
+            const wp = await gameContract.waitingPlayer();
+            if (wp.toLowerCase() === this.playerAddress.toLowerCase()) {
+                console.log('Registered! Waiting for opponent...');
+            } else {
+                console.log("Transaction success, but not waiting player. Battle likely started.");
+                // Optional: Trigger a check for events just in case
+                //checkPastEvents(gameContract, provider);
+            }
+
             // We rely on the useEffect listener now.
             return [true, '']
         } catch (e: any) {
@@ -163,29 +257,85 @@ export class CardServerInteractor {
     }
 
     async resolveBattle(battleId: string) {
-        const gameContract = await this.getGameContract()
+        const gameContract = await this.getGameContractSigner()
+        const gameContractRead = this.getGameContractBrowser()
+
+        // Convert battleId to BigInt for contract calls
+        const battleIdBigInt = BigInt(battleId)
 
         // Wait a bit for block propagation
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 500));
+        
+        // Check battle state first
+        try {
+            const battle = await gameContractRead.battles(battleIdBigInt)
+            console.log(`Battle ${battleId} state:`, {
+                challenger: battle.challenger,
+                opponent: battle.opponent,
+                state: Number(battle.state), // 0=Waiting, 1=Ready, 2=Resolved
+                challengerReady: battle.challengerReady,
+                opponentReady: battle.opponentReady
+            })
+            
+            if (Number(battle.state) === 2) {
+                console.log(`Battle ${battleId} is already resolved, skipping resolveBattle call`)
+                return
+            }
+            
+            if (Number(battle.state) !== 1) {
+                console.warn(`Battle ${battleId} is not in Ready state (state=${battle.state}), cannot resolve`)
+                return
+            }
+        } catch (e) {
+            console.error(`Failed to check battle state:`, e)
+        }
         
         console.log(`Calling resolveBattle for ${battleId}`)
-        const tx = await gameContract.resolveBattle(battleId);
-        console.log(`resolveBattle tx sent: ${tx.hash}, waiting for confirmation...`)
-        await tx.wait();
-        console.log(`resolveBattle tx confirmed`)
+        
+        try {
+            // Use BigInt for the contract call with fixed gas limit
+            // Skip gas estimation to avoid RPC timeouts on heavy simulation
+            // Wrap in retry for flaky RPC
+            const tx = await withRetry(
+                () => gameContract.resolveBattle(battleIdBigInt, {
+                    gasLimit: 3000000n // 3M gas should be enough for most battles
+                }),
+                3,
+                500,
+                "resolveBattle"
+            )
+            console.log(`resolveBattle tx sent: ${tx.hash}, waiting for confirmation...`)
+            await tx.wait();
+            console.log(`resolveBattle tx confirmed`)
+        } catch (e: any) {
+            console.error(`resolveBattle failed:`, e)
+            
+            // Try to extract revert reason
+            if (e.reason) {
+                console.error(`Revert reason: ${e.reason}`)
+            }
+            if (e.data) {
+                console.error(`Error data: ${e.data}`)
+            }
+            
+            throw e
+        }
     }
 
     async recordPlaybackInfoAsync(battleId: string): Promise<BattlePlaybackInfo> {
-        const gameContract = await this.getGameContract()
+        const gameContract = this.getGameContractBrowser()
 
-        const deckAAddress = await gameContract.getBattleSideAddress(battleId, 0)
-        const deckBAddress = await gameContract.getBattleSideAddress(battleId, 1)
+        // Convert battleId to BigInt for contract calls
+        const battleIdBigInt = BigInt(battleId)
+
+        const deckAAddress = await gameContract.getBattleSideAddress(battleIdBigInt, 0)
+        const deckBAddress = await gameContract.getBattleSideAddress(battleIdBigInt, 1)
 
         // Fetch all card IDs in parallel
         const cardIdPromises = []
         for (let i = 0; i < 3; i++) {
-            cardIdPromises.push(gameContract.getCardIdOfSide(battleId, 0, i))
-            cardIdPromises.push(gameContract.getCardIdOfSide(battleId, 1, i))
+            cardIdPromises.push(gameContract.getCardIdOfSide(battleIdBigInt, 0, i))
+            cardIdPromises.push(gameContract.getCardIdOfSide(battleIdBigInt, 1, i))
         }
         const cardIds = await Promise.all(cardIdPromises)
         
@@ -219,56 +369,83 @@ export class CardServerInteractor {
             attacks: []
         })
 
+        // Get current block for limited range queries
+        const currentBlock = await this.provider.getBlockNumber()
+        // Look back max 500 blocks (adjust based on RPC limits)
+        const fromBlock = Math.max(0, currentBlock - 500)
+
         // Loop until BattleResolved event is found for this battleId
         let battleResolved = false;
-        while (!battleResolved) {
-            // Query BattleResolved event
-            const resolvedFilter = gameContract.filters.BattleResolved(battleId);
-            const resolvedEvents = await gameContract.queryFilter(resolvedFilter);
-            
-            if (resolvedEvents.length > 0) {
-                const resolvedEvent = resolvedEvents[0];
-                const args = 'args' in resolvedEvent ? resolvedEvent.args : [];
-                const [battleIdEvent, winner, loser, totalSteps] = args || [];
+        let retryCount = 0;
+        const maxRetries = 120; // 30 retries * 2 seconds = 60 seconds max wait
+        
+        while (!battleResolved && retryCount < maxRetries) {
+            try {
+                // Query BattleResolved event with block range
+                const toBlock = await this.provider.getBlockNumber()
+                const resolvedFilter = gameContract.filters.BattleResolved(battleIdBigInt);
+                const resolvedEvents = await gameContract.queryFilter(resolvedFilter, fromBlock, toBlock);
                 
-                console.log(`Battle finished: winner=${winner} loser=${loser} totalSteps=${totalSteps}`);
-                
-                if (winner == deckBAddress) {
-                    playbackInfo.deckWonIndex = 1
+                if (resolvedEvents.length > 0) {
+                    const resolvedEvent = resolvedEvents[0];
+                    const args = 'args' in resolvedEvent ? resolvedEvent.args : [];
+                    const [battleIdEvent, winner, loser, totalSteps] = args || [];
+                    
+                    console.log(`Battle finished: winner=${winner} loser=${loser} totalSteps=${totalSteps}`);
+                    
+                    if (winner == deckBAddress) {
+                        playbackInfo.deckWonIndex = 1
+                    } else {
+                        playbackInfo.deckWonIndex = 0
+                    }
+                    
+                    battleResolved = true;
                 } else {
-                    playbackInfo.deckWonIndex = 0
+                    retryCount++;
+                    // Wait before querying again
+                    await new Promise(r => setTimeout(r, 500));
                 }
-                
-                battleResolved = true;
-            } else {
-                // Wait 200ms before querying again
-                await new Promise(r => setTimeout(r, 200));
+            } catch (e) {
+                console.error("Error querying BattleResolved, retrying:", e);
+                retryCount++;
+                await new Promise(r => setTimeout(r, 500));
             }
         }
 
-        // Query BattleStep events
-        const stepFilter = gameContract.filters.BattleStep(battleId);
-        const stepEvents = await gameContract.queryFilter(stepFilter);
-        
-        console.log(`Found ${stepEvents.length} battle step events`);
-        
-        stepEvents.forEach((event) => {
-            const args = 'args' in event ? event.args : [];
-            const [battleIdEvent, p1CardIndex, p2CardIndex, p1HealthAfter, p2HealthAfter, damage, attackSide] = args;
+        if (!battleResolved) {
+            console.error(`Battle ${battleId} resolution not found after ${maxRetries} retries`);
+            // Return partial playback info - the battle may have resolved but we couldn't fetch it
+            return playbackInfo;
+        }
+
+        // Query BattleStep events with block range
+        try {
+            const toBlock = await this.provider.getBlockNumber()
+            const stepFilter = gameContract.filters.BattleStep(battleIdBigInt);
+            const stepEvents = await gameContract.queryFilter(stepFilter, fromBlock, toBlock);
             
-            if (battleIdEvent == battleId) {
-                console.log(`Attacking info: cardAIndex=${p1CardIndex}, cardBIndex=${p2CardIndex}, cardAHealth=${p1HealthAfter} cardBHealth=${p2HealthAfter} damage=${damage} attackSide=${attackSide}`);
+            console.log(`Found ${stepEvents.length} battle step events`);
+            
+            stepEvents.forEach((event) => {
+                const args = 'args' in event ? event.args : [];
+                const [battleIdEvent, p1CardIndex, p2CardIndex, p1HealthAfter, p2HealthAfter, damage, attackSide] = args;
                 
-                playbackInfo.attacks.push({
-                    cardAIndex: Number(p1CardIndex),
-                    cardBIndex: Number(p2CardIndex),
-                    damage: Number(damage),
-                    cardAHealthAfter: Number(p1HealthAfter),
-                    cardBHealthAfter: Number(p2HealthAfter),
-                    attacker: Number(attackSide)
-                });
-            }
-        });
+                if (battleIdEvent == battleIdBigInt) {
+                    console.log(`Attacking info: cardAIndex=${p1CardIndex}, cardBIndex=${p2CardIndex}, cardAHealth=${p1HealthAfter} cardBHealth=${p2HealthAfter} damage=${damage} attackSide=${attackSide}`);
+                    
+                    playbackInfo.attacks.push({
+                        cardAIndex: Number(p1CardIndex),
+                        cardBIndex: Number(p2CardIndex),
+                        damage: Number(damage),
+                        cardAHealthAfter: Number(p1HealthAfter),
+                        cardBHealthAfter: Number(p2HealthAfter),
+                        attacker: Number(attackSide)
+                    });
+                }
+            });
+        } catch (e) {
+            console.error("Error querying BattleStep events:", e);
+        }
 
         return playbackInfo
     }

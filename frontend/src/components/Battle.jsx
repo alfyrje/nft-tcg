@@ -20,8 +20,9 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
     useEffect(() => {
         if (!gameLogicAddress || !address || !window.ethereum) return;
 
+        /*
         const provider = new ethers.BrowserProvider(window.ethereum);
-        const gameContract = new ethers.Contract(gameLogicAddress, GameLogicAbi.abi, provider);
+        const gameContract = new ethers.Contract(gameLogicAddress, GameLogicAbi.abi, provider);*/
 
         if (currentGame.current === null)
         {
@@ -29,6 +30,7 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
             currentGame.current = StartGame("game-container", serverInteractor)
         }
     
+        /*
         const onBattleCreated = (battleId, p1, p2) => {
             console.log("BattleCreated Event:", battleId, p1, p2);
             if (p1.toLowerCase() === address.toLowerCase() || p2.toLowerCase() === address.toLowerCase()) {
@@ -44,7 +46,7 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
             } else if (loser.toLowerCase() === address.toLowerCase()) {
                 setStatus('You Lost! You lost a card.');
             }
-        };
+        };*/
 
         //gameContract.on("BattleCreated", onBattleCreated);
         //gameContract.on("BattleResolved", onBattleResolved);
@@ -53,8 +55,8 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
         //checkPastEvents(gameContract, provider);
 
         return () => {
-            gameContract.off("BattleCreated", onBattleCreated);
-            gameContract.off("BattleResolved", onBattleResolved);
+            //gameContract.off("BattleCreated", onBattleCreated);
+            //gameContract.off("BattleResolved", onBattleResolved);
 
             currentGame.current?.destroy()
             currentGame.current = undefined
@@ -167,36 +169,6 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
     return (
         <div>
             <h2>Battle Arena</h2>
-            <p>Select 3 cards to battle. Winner takes a random card from Loser!</p>
-            <div style={{display:'flex', gap:'15px', flexWrap:'wrap', marginBottom:'20px', justifyContent: 'center'}}>
-                {myCards.map(c => (
-                    <div key={c.id} 
-                        onClick={() => toggleSelect(c.id)}
-                        style={{
-                            border: selected.includes(c.id) ? '4px solid #4fc3f7' : '4px solid #e1f5fe',
-                            backgroundColor: selected.includes(c.id) ? '#e1f5fe' : '#ffffff',
-                            padding: '10px', 
-                            borderRadius: '15px', 
-                            cursor: 'pointer', 
-                            width: '120px',
-                            boxShadow: '0 4px 8px rgba(0,0,0,0.05)',
-                            transition: 'all 0.2s'
-                        }}>
-                        <strong>{c.name}</strong><br/>
-                        <span style={{fontSize: '1.2em'}}>⚔️{c.attack} ❤️{c.health}</span>
-                    </div>
-                ))}
-            </div>
-            <div style={{display:'flex', gap:'15px', justifyContent: 'center'}}>
-                <button onClick={joinQueue} disabled={selected.length !== 3 || status.includes('Waiting') || status.includes('Approving')}>
-                    {status ? status : 'Find Match'}
-                </button>
-                <button onClick={() => {
-                    const provider = new ethers.BrowserProvider(window.ethereum);
-                    const gameContract = new ethers.Contract(gameLogicAddress, GameLogicAbi.abi, provider);
-                    checkPastEvents(gameContract, provider);
-                }}>Check Status</button>
-            </div>
             <div id="game-container"></div>
         </div>
     );
