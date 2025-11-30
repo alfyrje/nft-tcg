@@ -8,7 +8,7 @@ contract GameLogic is Ownable {
     CardNFT public card;
     enum BattleState {Waiting, Ready, Resolved}
 
-    struct Temp {uint16 hp; uint16 atk; uint16 spd; CardNFT.Attribute attr;}
+    struct Temp {uint16 hp; uint16 atk; uint16 spd; CardNFT.Attribute attr; uint16 ct;}
 
     struct Battle {
         address challenger;
@@ -122,14 +122,14 @@ contract GameLogic is Ownable {
         for(uint i=0;i<3;i++){
             c0 = card.getCard(b.challengerCards[i]);
             c1 = card.getCard(b.opponentCards[i]);
-            A[i] = Temp({hp:c0.health, atk:c0.attack, spd:c0.speed, attr:c0.attr});
-            B[i] = Temp({hp:c1.health, atk:c1.attack, spd:c1.speed, attr:c1.attr});
+            A[i] = Temp({hp:c0.health, atk:c0.attack, spd:c0.speed, attr:c0.attr, ct:0});
+            B[i] = Temp({hp:c1.health, atk:c1.attack, spd:c1.speed, attr:c1.attr, ct:0});
         }
         uint aliveA = 3; uint aliveB = 3;
         bytes32 seed = keccak256(abi.encodePacked(blockhash(block.number-1), b.challenger, b.opponent, b.challengerCards, b.opponentCards));
         uint turnIndex = 0;
         while(aliveA>0 && aliveB>0 && turnIndex < 1000){
-            uint attackerIdx = _nextAttacker(A, B);
+            uint attackerIdx = _tickAndPick(A, B);
             bool attackerIsA = (attackerIdx & 0x80)==0;
             uint idx = uint(attackerIdx & 0x7F);
             if(attackerIsA){
@@ -150,16 +150,54 @@ contract GameLogic is Ownable {
         return (2, b.challengerCards[uint(uint256(seed)%3)]);
     }
 
-    function _nextAttacker(Temp[3] memory A, Temp[3] memory B) internal pure returns (uint8) {
-        uint highestSpd = 0;
-        uint8 idx = 0;
-        bool isA = true;
-        for(uint i=0;i<3;i++){
-            if(A[i].hp>0 && A[i].spd>highestSpd){ highestSpd = A[i].spd; idx = uint8(i); isA = true; }
-            if(B[i].hp>0 && B[i].spd>highestSpd){ highestSpd = B[i].spd; idx = uint8(i); isA = false; }
+    function _tickAndPick(Temp[3] memory A, Temp[3] memory B) internal pure returns (uint8) {
+        while(true) {
+            int256 highestCt = -1;
+            uint8 selected = 0;
+            bool found = false;
+
+            for(uint i=0; i<3; i++) {
+                if(A[i].hp > 0 && A[i].ct >= 1000) {
+                    if(int256(uint256(A[i].ct)) > highestCt) {
+                        highestCt = int256(uint256(A[i].ct));
+                        selected = uint8(i);
+                        found = true;
+                    }
+                }
+            }
+            for(uint i=0; i<3; i++) {
+                if(B[i].hp > 0 && B[i].ct >= 1000) {
+                    if(int256(uint256(B[i].ct)) > highestCt) {
+                        highestCt = int256(uint256(B[i].ct));
+                        selected = uint8(0x80 | i);
+                        found = true;
+                    }
+                }
+            }
+
+            if(found) {
+                if((selected & 0x80) == 0) A[selected].ct -= 1000;
+                else B[selected & 0x7F].ct -= 1000;
+                return selected;
+            }
+
+            uint256 minTicks = 1000000;
+            for(uint i=0; i<3; i++) {
+                if(A[i].hp > 0) {
+                    uint256 needed = (1000 - A[i].ct + A[i].spd - 1) / A[i].spd;
+                    if(needed < minTicks) minTicks = needed;
+                }
+                if(B[i].hp > 0) {
+                    uint256 needed = (1000 - B[i].ct + B[i].spd - 1) / B[i].spd;
+                    if(needed < minTicks) minTicks = needed;
+                }
+            }
+
+            for(uint i=0; i<3; i++) {
+                if(A[i].hp > 0) A[i].ct += uint16(minTicks * A[i].spd);
+                if(B[i].hp > 0) B[i].ct += uint16(minTicks * B[i].spd);
+            }
         }
-        if(isA) return idx;
-        return uint8(0x80 | idx);
     }
 
     function _computeDamage(uint16 atk, CardNFT.Attribute a, CardNFT.Attribute b) internal pure returns (uint) {
