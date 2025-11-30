@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import GameLogicAbi from '../GameLogic.json';
 import CardNFTAbi from '../CardNFT.json';
+import PhaserGame from './PhaserGame';
 
 export default function Battle({ address, contractAddress, gameLogicAddress }) {
     const [myCards, setMyCards] = useState([]);
@@ -179,6 +180,7 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
                     checkPastEvents(gameContract, provider);
                 }}>Check Status</button>
             </div>
+            <PhaserGame />
         </div>
     );
 }

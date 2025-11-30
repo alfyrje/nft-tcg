@@ -15,14 +15,14 @@ import CardAttackPrefab from "../gameobjects/CardAttackPrefab";
 import BattleResultPrefab from "../gameobjects/BattleResultPrefab";
 
 // "Every great game begins with a single scene. Let's make this one unforgettable!"
-export class ChooseCard extends Phaser.Scene {
+export class CardMain extends Phaser.Scene {
     private zone: Phaser.GameObjects.Zone
     private cardPicker: CardPickPrefab
     private cardBattle: CardAttackPrefab
     private battleResult: BattleResultPrefab
 
     constructor() {
-        super('ChooseCard');
+        super('CardMain');
     }
 
     init() {
