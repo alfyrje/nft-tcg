@@ -92,6 +92,7 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
             let iCopy = i
 
             let receivingCopy = receiving.container()
+            let receivingCard = receiving
             let shaken: boolean = false
 
             let receivingContainerCopy = receiving.container()
@@ -101,6 +102,9 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
             tweenAttackKaboom.onUpdate = (tween: Phaser.Tweens.Tween) => {
                 if (tween.totalProgress > attackConnectProgress && !shaken) {
                     shaken = true
+
+                    // Animate health decrease
+                    receivingCard.animateHealthChange(receivingHp, 300)
 
                     let shake = new ShakePosition(receivingCopy, {
                         duration: 300,

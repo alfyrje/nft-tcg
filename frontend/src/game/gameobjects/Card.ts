@@ -5,7 +5,9 @@ export default class Card {
     private visualContainer: Phaser.GameObjects.Container
     private eventEmitter: Phaser.Events.EventEmitter;
     private highlightBackground: Phaser.GameObjects.Image
+    private healthLabel: Phaser.GameObjects.Text
     private cardInfo: CardInfo
+    private currentHealth: number
 
     static HOVER_ENTER_EVENT: string = "hoverEnter" as const;
     static HOVER_EXIT_EVENT: string = "hoverLeave" as const;
@@ -107,10 +109,11 @@ export default class Card {
         })
         healthIcon.setScale(0.8)
 
-        var healthLabel = this.scene.make.text({
+        this.currentHealth = cardInfo.health ?? 0
+        this.healthLabel = this.scene.make.text({
             x: -20,
             y: 82,
-            text: String(cardInfo.health ?? 0),
+            text: String(this.currentHealth),
             style: { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' }
         }, false)
 
@@ -125,7 +128,7 @@ export default class Card {
         this.visualContainer.add(attackIcon)
         this.visualContainer.add(attackLabel)
         this.visualContainer.add(healthIcon)
-        this.visualContainer.add(healthLabel)
+        this.visualContainer.add(this.healthLabel)
         //this.container.add(cardFrame)
 
         this.visualContainer.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, (_1: any, _2: number, _3: number, _4: PointerEvent) => {
@@ -181,5 +184,39 @@ export default class Card {
 
     getCardInfo() : CardInfo {
         return this.cardInfo
+    }
+
+    animateHealthChange(newHealth: number, duration: number = 300): Phaser.Tweens.Tween {
+        const startHealth = this.currentHealth
+        const healthDiff = newHealth - startHealth
+
+        // Flash red when taking damage
+        if (healthDiff < 0) {
+            this.healthLabel.setColor('#ff4444')
+        }
+
+        const tween = this.scene.tweens.add({
+            targets: { health: startHealth },
+            health: newHealth,
+            duration: duration,
+            ease: 'Cubic.easeOut',
+            onUpdate: (tween) => {
+                const currentValue = Math.round(tween.getValue())
+                this.healthLabel.setText(String(currentValue))
+            },
+            onComplete: () => {
+                this.currentHealth = newHealth
+                this.healthLabel.setText(String(newHealth))
+                // Reset color after animation
+                this.healthLabel.setColor('#ffffff')
+            }
+        })
+
+        return tween
+    }
+
+    setHealth(newHealth: number) {
+        this.currentHealth = newHealth
+        this.healthLabel.setText(String(newHealth))
     }
 }
