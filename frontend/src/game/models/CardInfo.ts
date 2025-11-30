@@ -5,9 +5,11 @@ class CardInfo
 {
     attack: integer;
     health: integer;
-    speed: integer;
-    element: CardElement;
-    rarity: CardRarity;
+    speed?: integer;
+    element?: CardElement;
+    rarity?: CardRarity;
+    name?: string;
+    id?: string;
 
     constructor(init?: Partial<CardInfo>) {
         Object.assign(this, init)

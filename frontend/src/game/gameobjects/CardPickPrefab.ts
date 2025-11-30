@@ -15,6 +15,8 @@ class CardPickPrefab extends Phaser.GameObjects.Container {
     constructor(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, cardCollectionInfo: CardCollectionInfo, addToScene: boolean = true) {
         super(scene)
 
+        console.log(`Length: ${cardCollectionInfo.cardList.length}`)
+
         var title = scene.add.text(0, 0, 'Choose your card')
         title.setFontSize(35)
 

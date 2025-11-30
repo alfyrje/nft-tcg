@@ -74,7 +74,7 @@ export default class Card {
         nameLabel.setFontSize(20)
         nameLabel.setColor("#000000")
 
-        nameLabel.setText("Legendary shitty")
+        nameLabel.setText(cardInfo.name ?? "Temporary")
 
         nameLabel.x = -nameLabel.displayWidth / 2
 

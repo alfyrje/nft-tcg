@@ -13,6 +13,8 @@ import { BattlePlaybackInfo } from "../models/BattlePlaybackInfo";
 import CardPickPrefab from "../gameobjects/CardPickPrefab";
 import CardAttackPrefab from "../gameobjects/CardAttackPrefab";
 import BattleResultPrefab from "../gameobjects/BattleResultPrefab";
+import { CardServerInteractor } from "./CardServerInteractor";
+
 
 // "Every great game begins with a single scene. Let's make this one unforgettable!"
 export class CardMain extends Phaser.Scene {
@@ -21,11 +23,16 @@ export class CardMain extends Phaser.Scene {
     private cardBattle: CardAttackPrefab
     private battleResult: BattleResultPrefab
 
+    private cardCollectionInfoCache?: CardCollectionInfo
+    private cardServerInteractor: CardServerInteractor
+
     constructor() {
         super('CardMain');
     }
 
-    init() {
+    init(data: CardServerInteractor) {
+        this.cardServerInteractor = data
+
         // Initialize scene
         initLoadCardAssets()
     }
@@ -35,28 +42,45 @@ export class CardMain extends Phaser.Scene {
         loadCardAssets(this)
     }
 
-    getCardCollectionInfo(): CardCollectionInfo {
+    async getCardCollectionInfo(): Promise<CardCollectionInfo> {
+        if (this.cardCollectionInfoCache == null) {
+            var result = await this.cardServerInteractor.fetchCardCollectionInfo()
+            if (result) {
+                this.cardCollectionInfoCache = result
+            }
+            else {
+                return this.getCardCollectionInfoTemp()
+            }
+        }
+
+        return this.cardCollectionInfoCache
+    }
+
+    getCardCollectionInfoTemp(): CardCollectionInfo {
         return new CardCollectionInfo([
             new CardInfo({
                 attack: 50,
                 health: 10,
                 speed: 20,
                 rarity: CardRarity.Common,
-                element: CardElement.Earth
+                element: CardElement.Earth,
+                name: "Stupid"
             }),
             new CardInfo({
                 attack: 70,
                 health: 20,
                 speed: 25,
                 rarity: CardRarity.Epic,
-                element: CardElement.Steel
+                element: CardElement.Steel,
+                name: "Dumb"
             }),
             new CardInfo({
                 attack: 100,
                 health: 20,
                 speed: 88,
                 rarity: CardRarity.Legendary,
-                element: CardElement.Steel
+                element: CardElement.Steel,
+                name: "Hi"
             })
         ])
     }
@@ -68,26 +92,29 @@ export class CardMain extends Phaser.Scene {
                 health: 10,
                 speed: 20,
                 rarity: CardRarity.Common,
-                element: CardElement.Fire
+                element: CardElement.Fire,
+                name: "Dragon"
             }),
             new CardInfo({
                 attack: 70,
                 health: 50,
                 speed: 25,
                 rarity: CardRarity.Epic,
-                element: CardElement.Steel
+                element: CardElement.Steel,
+                name: "Poo"
             }),
             new CardInfo({
                 attack: 100,
                 health: 30,
                 speed: 88,
                 rarity: CardRarity.Common,
-                element: CardElement.Steel
+                element: CardElement.Steel,
+                name: "Real"
             })
         ])
         
         return {
-            deckA: { ownerAddress: "0x190", cardCollectionInfo: this.getCardCollectionInfo() },
+            deckA: { ownerAddress: "0x190", cardCollectionInfo: this.getCardCollectionInfoTemp() },
             deckB: { ownerAddress: "0x34955", cardCollectionInfo: deckEnemy },
             deckWonIndex: 0,
             attacks: [
@@ -124,8 +151,8 @@ export class CardMain extends Phaser.Scene {
         Phaser.Display.Align.In.Center(backgroundImage, this.zone)
     }
 
-    loadCardPicker() {
-        this.cardPicker = new CardPickPrefab(this, this.zone, this.getCardCollectionInfo())
+    async loadCardPicker() {
+        this.cardPicker = new CardPickPrefab(this, this.zone, await this.getCardCollectionInfo())
         this.cardPicker.onQueuePressed = () => {
             this.cameras.main.fadeOut(200, 0, 0, 0)
 
@@ -161,13 +188,13 @@ export class CardMain extends Phaser.Scene {
     onReplayRequested() {
         this.cameras.main.fadeOut(200, 0, 0, 0)
 
-        let handleFadeOutFunc = () => {
+        let handleFadeOutFunc = async () => {
             this.cameras.main.off(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handleFadeOutFunc)
 
             this.battleResult.destroy()
             this.cardBattle.destroy()
 
-            this.loadCardPicker()
+            await this.loadCardPicker()
 
             this.cameras.main.fadeIn(200, 0, 0, 0)
         }
@@ -175,8 +202,8 @@ export class CardMain extends Phaser.Scene {
         this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, handleFadeOutFunc)
     }
 
-    create() {
+    async create() {
         this.createBase()
-        this.loadCardPicker()
+        await this.loadCardPicker()
     }
 }

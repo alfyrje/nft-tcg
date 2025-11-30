@@ -5,6 +5,7 @@ import { MainMenu } from './scenes/MainMenu';
 import { AUTO, Game } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 import { CardMain } from './scenes/CardMain';
+import { CardServerInteractor } from './scenes/CardServerInteractor';
 
 //  Find out more information about the Game Config at:
 //  https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
@@ -15,22 +16,15 @@ const config: Phaser.Types.Core.GameConfig = {
     parent: 'game-container',
     backgroundColor: '#ffffff',
     scene: [
-        /*
-        Boot,
-        Preloader,
-        MainMenu,
-        MainGame,
-        GameOver*/
         CardMain
     ],
     antialias: false,
     transparent: true
 };
 
-const StartGame = (parent: string) => {
-
-    return new Game({ ...config, parent });
-
+const StartGame = (parent: string, serverInteractor: CardServerInteractor) => {
+    var game = new Game({ ...config, parent });
+    game.scene.start('CardMain', serverInteractor)
 }
 
 export default StartGame;
