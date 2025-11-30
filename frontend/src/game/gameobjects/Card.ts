@@ -1,4 +1,20 @@
 import CardInfo from "../models/CardInfo";
+import { CARD_BACKGROUNDS, CARD_FRAMES, CARD_ART_FRAMES, NAME_PLATES } from "../scenes/Shared";
+
+// Seeded random using mulberry32 (better distribution for small seeds)
+function seededRandom(seed: number): () => number {
+    // Mix the seed first to avoid patterns with small numbers
+    seed = seed * 2654435761 ^ seed >>> 16;
+    seed = seed * 2654435761 ^ seed >>> 16;
+    
+    return function() {
+        seed |= 0;
+        seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+}
 
 export default class Card {
     private scene: Phaser.Scene;
@@ -18,13 +34,23 @@ export default class Card {
         this.eventEmitter = new Phaser.Events.EventEmitter()
         this.cardInfo = cardInfo
 
+        // Use card ID as seed for predictable randomization
+        const cardId = Number(cardInfo.id) ?? 0
+        const random = seededRandom(cardId)
+        
+        // Pick random variants based on card ID
+        const backgroundKey = CARD_BACKGROUNDS[Math.floor(random() * CARD_BACKGROUNDS.length)]
+        const frameKey = CARD_FRAMES[Math.floor(random() * CARD_FRAMES.length)]
+        const artFrameKey = CARD_ART_FRAMES[Math.floor(random() * CARD_ART_FRAMES.length)]
+        const namePlateKey = NAME_PLATES[Math.floor(random() * NAME_PLATES.length)]
+
         this.visualContainer = this.scene.make.container({
             x: 0,
             y: 0
         }, addToScene)
 
         var background = this.scene.make.image({
-            key: 'cardBackground',
+            key: backgroundKey,
             x: 0,
             y: 0,
             add: false
@@ -33,7 +59,7 @@ export default class Card {
         background.setScale(1.5)
 
         var cardFrame = this.scene.make.image({
-            key: 'cardFrame',
+            key: frameKey,
             x: 0,
             y: 0,
             add: false
@@ -42,7 +68,7 @@ export default class Card {
         cardFrame.setScale(1.5)
 
         var artFrame = this.scene.make.image({
-            key: 'cardArtFrame',
+            key: artFrameKey,
             x: 0,
             y: -30,
             add: false
@@ -51,7 +77,7 @@ export default class Card {
         artFrame.setScale(1.5)
 
         var namePlate = this.scene.make.image({
-            key: "namePlate",
+            key: namePlateKey,
             x: 0,
             y: 60
         })
@@ -201,7 +227,7 @@ export default class Card {
             duration: duration,
             ease: 'Cubic.easeOut',
             onUpdate: (tween) => {
-                const currentValue = Math.round(tween.getValue())
+                const currentValue = Math.round(tween.getValue()!)
                 this.healthLabel.setText(String(currentValue))
             },
             onComplete: () => {
