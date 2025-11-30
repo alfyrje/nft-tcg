@@ -153,23 +153,29 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
     }
 
     return (
-        <div style={{borderTop:'2px solid #eee', marginTop:'20px', paddingTop:'20px'}}>
+        <div>
             <h2>Battle Arena</h2>
             <p>Select 3 cards to battle. Winner takes a random card from Loser!</p>
-            <div style={{display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'10px'}}>
+            <div style={{display:'flex', gap:'15px', flexWrap:'wrap', marginBottom:'20px', justifyContent: 'center'}}>
                 {myCards.map(c => (
                     <div key={c.id} 
                         onClick={() => toggleSelect(c.id)}
                         style={{
-                            border: selected.includes(c.id) ? '2px solid blue' : '1px solid #ccc',
-                            padding: '5px', borderRadius: '5px', cursor: 'pointer', background: '#fff'
+                            border: selected.includes(c.id) ? '4px solid #4fc3f7' : '4px solid #e1f5fe',
+                            backgroundColor: selected.includes(c.id) ? '#e1f5fe' : '#ffffff',
+                            padding: '10px', 
+                            borderRadius: '15px', 
+                            cursor: 'pointer', 
+                            width: '120px',
+                            boxShadow: '0 4px 8px rgba(0,0,0,0.05)',
+                            transition: 'all 0.2s'
                         }}>
                         <strong>{c.name}</strong><br/>
-                        ⚔️{c.attack} ❤️{c.health}
+                        <span style={{fontSize: '1.2em'}}>⚔️{c.attack} ❤️{c.health}</span>
                     </div>
                 ))}
             </div>
-            <div style={{display:'flex', gap:'10px'}}>
+            <div style={{display:'flex', gap:'15px', justifyContent: 'center'}}>
                 <button onClick={joinQueue} disabled={selected.length !== 3 || status.includes('Waiting') || status.includes('Approving')}>
                     {status ? status : 'Find Match'}
                 </button>
