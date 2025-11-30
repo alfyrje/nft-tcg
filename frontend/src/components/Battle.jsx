@@ -11,6 +11,14 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
     const [status, setStatus] = useState('');
     const [battleLog, setBattleLog] = useState([]);
     const currentGame = useRef(null)
+    const gameContainerRef = useRef(null)
+
+    // Auto-scroll to game canvas on mount
+    useEffect(() => {
+        if (gameContainerRef.current) {
+            gameContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, []);
 
     useEffect(() => {
         if (address && contractAddress) loadMyCards();
@@ -167,9 +175,11 @@ export default function Battle({ address, contractAddress, gameLogicAddress }) {
     }
 
     return (
-        <div>
-            <h2>Battle Arena</h2>
-            <div id="game-container"></div>
+        <div className="battle-page">
+            <h2>⚔️ Battle Arena ⚔️</h2>
+            <div className="game-wrapper">
+                <div id="game-container" ref={gameContainerRef}></div>
+            </div>
         </div>
     );
 }
