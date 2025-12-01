@@ -52,6 +52,34 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
         this.playbackChain.restart()
     }
 
+    private showDamageText(x: number, y: number, damage: number) {
+        // Create floating damage text
+        const damageText = this.scene.add.text(x, y, `-${damage}`, {
+            fontSize: '32px',
+            color: '#ff4444',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 4
+        })
+        damageText.setOrigin(0.5, 0.5)
+        
+        // Add to this container so it's part of the prefab
+        this.add(damageText)
+
+        // Animate: float up and fade out
+        this.scene.tweens.add({
+            targets: damageText,
+            y: y - 80,
+            alpha: 0,
+            scale: 1.5,
+            duration: 800,
+            ease: 'Cubic.easeOut',
+            onComplete: () => {
+                damageText.destroy()
+            }
+        })
+    }
+
     queuePlaybackTween(playbackInfo: BattlePlaybackInfo, zone: Phaser.GameObjects.Zone, deckA: CardCollection, deckB: CardCollection) {
         var tweens: Phaser.Types.Tweens.TweenBuilderConfig[]  = []
 
@@ -99,9 +127,15 @@ class CardAttackPrefab extends Phaser.GameObjects.Container {
 
             //let isKillingHit = isReceivingDead && (i == playbackInfo.attacks.length - 1)
 
+            // Get the damage amount for this attack
+            let damageAmount = attackInfo.damage
+
             tweenAttackKaboom.onUpdate = (tween: Phaser.Tweens.Tween) => {
                 if (tween.totalProgress > attackConnectProgress && !shaken) {
                     shaken = true
+
+                    // Show floating damage text
+                    this.showDamageText(receivingCopy.getWorldPoint().x, receivingCopy.getWorldPoint().y - 50, damageAmount)
 
                     // Animate health decrease
                     receivingCard.animateHealthChange(receivingHp, 300)
